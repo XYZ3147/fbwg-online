@@ -5,7 +5,7 @@
   if (window.__fbwgHost) return;
   window.__fbwgHost = true;
 
-  const { ROLE_KEYS, ROLE_NAMES, DIRECTIONS, newCode, peerIdFor } = FBWG;
+  const { ROLE_KEYS, ROLE_NAMES, DIRECTIONS, newCode, peerIdFor, peerOptions } = FBWG;
 
   const state = {
     status: 'idle', // idle | starting | waiting | connected | error
@@ -25,7 +25,9 @@
   let codeRetries = 0;
   let lastSeen = 0;
   let reconnectDelay = 1000;
-  const GUEST_TIMEOUT_MS = 8000;
+  // Tunable from the update file without a new version.
+  let settings = FBWG.cleanSettings(null);
+  FBWG.loadSettings().then((s) => { settings = s; });
 
   // ---------- talking to the page-world hook ----------
   function sendKey(type, k) {
@@ -99,8 +101,8 @@
       if (!sender.track || sender.track.kind !== 'video') continue;
       const params = sender.getParameters();
       if (!params.encodings || !params.encodings.length) params.encodings = [{}];
-      params.encodings[0].maxBitrate = 4_000_000;
-      params.encodings[0].maxFramerate = 60;
+      params.encodings[0].maxBitrate = settings.maxBitrate;
+      params.encodings[0].maxFramerate = settings.maxFramerate;
       params.degradationPreference = 'maintain-framerate';
       sender.setParameters(params).catch(() => {});
     }
@@ -222,7 +224,7 @@
   // the slot so they can rejoin instead of being told the game is full.
   // A connection that never finishes opening is dropped the same way.
   setInterval(() => {
-    if (!conn || Date.now() - lastSeen < GUEST_TIMEOUT_MS) return;
+    if (!conn || Date.now() - lastSeen < settings.guestTimeoutMs) return;
     conn.__fbwgDrop();
   }, 2000);
 
@@ -236,7 +238,7 @@
     setBackgroundMode(true);
     render();
 
-    peer = new Peer(peerIdFor(state.code), { debug: 1 });
+    peer = new Peer(peerIdFor(state.code), peerOptions(settings));
     peer.on('open', () => {
       codeRetries = 0;
       state.status = conn ? 'connected' : 'waiting';

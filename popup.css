@@ -105,7 +105,13 @@ button.link {
 .card.update p { margin: 0 0 8px; }
 .card.update ul { margin: 0 0 10px; padding-left: 18px; }
 .steps { margin: 10px 0; padding-left: 18px; color: var(--muted); }
-.card.update > button:not(.primary) { width: 100%; }
+.card.update .howto { margin: 0 0 8px; }
+.card.update .manual { color: var(--muted); }
+.card.update .manual summary { cursor: pointer; }
+.card.update .manual button.link { font-size: 13px; }
+
+.card.note { border-color: color-mix(in srgb, var(--water) 45%, var(--line)); }
+.card.note p { margin: 0; }
 
 form { display: flex; gap: 8px; }
 form input {

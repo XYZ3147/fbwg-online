@@ -5,7 +5,9 @@
   if (window.__fbwgSaveGuard) return;
   window.__fbwgSaveGuard = true;
 
-  const { isSaveKey, SAVE_HISTORY_MAX } = FBWG;
+  const { SAVE_HISTORY_MAX } = FBWG;
+  let extraPrefixes = [];
+  const isSaveKey = (k, v) => FBWG.isSaveKey(k, v, extraPrefixes);
   const SNAPSHOT_EVERY_MS = 15000;
   const HISTORY_SPACING_MS = 10 * 60 * 1000;
   const MAX_BYTES = 2 * 1024 * 1024;
@@ -55,6 +57,7 @@
   }
 
   async function restore() {
+    extraPrefixes = (await FBWG.loadSettings()).savePrefixes;
     const { saves, pendingRestore, autoRestore = true } = await chrome.storage.local.get(['saves', 'pendingRestore', 'autoRestore']);
     if (pendingRestore && pendingRestore.items) {
       const n = writeSaves(pendingRestore.items, true);

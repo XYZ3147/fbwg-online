@@ -151,6 +151,9 @@
   }
 
   function applyRemote(remote) {
+    const text = remote && typeof remote.announcement === 'string' ? remote.announcement : '';
+    $('announcement').textContent = text;
+    $('announcementCard').hidden = !text;
     const list = remote && cleanGames(remote.games);
     if (list) {
       games = list;
@@ -244,6 +247,8 @@
 
   (async () => {
     $('currentVersion').textContent = VERSION;
+    // Pick up a version that Update.cmd just installed.
+    chrome.runtime.sendMessage({ to: 'fbwg-bg', type: 'diskCheck' }).catch(() => {});
     fillGames();
     showSaves();
     const { remote } = await chrome.storage.local.get('remote');

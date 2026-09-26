@@ -1,7 +1,7 @@
 // Loads the extension into every supported game and checks GitHub for updates.
 importScripts('shared.js');
 
-const { UPDATE_URL, DEFAULT_GAMES, cleanGames, frameMatches, compareVersions } = FBWG;
+const { UPDATE_URL, DEFAULT_GAMES, cleanGames, cleanSettings, frameMatches, tabMatches, compareVersions } = FBWG;
 const CHECK_EVERY_MINUTES = 6 * 60;
 
 async function currentGames() {
@@ -45,6 +45,8 @@ async function checkForUpdates() {
     version: typeof data.version === 'string' ? data.version : null,
     notes: Array.isArray(data.notes) ? data.notes.filter((n) => typeof n === 'string').slice(0, 10) : [],
     games: cleanGames(data.games),
+    settings: cleanSettings(data.settings),
+    announcement: typeof data.announcement === 'string' ? data.announcement.slice(0, 300) : '',
   };
   const { remote: before } = await chrome.storage.local.get('remote');
   await chrome.storage.local.set({ remote, lastCheck: Date.now() });
@@ -60,16 +62,61 @@ function checkQuietly() {
 chrome.runtime.onInstalled.addListener(async () => {
   await setup();
   chrome.alarms.create('fbwg-update', { periodInMinutes: CHECK_EVERY_MINUTES });
+  chrome.alarms.create('fbwg-disk', { periodInMinutes: 0.5 });
   checkQuietly();
 });
 chrome.runtime.onStartup.addListener(async () => {
   await setup();
+  chrome.alarms.create('fbwg-disk', { periodInMinutes: 0.5 });
   checkQuietly();
 });
-chrome.alarms.onAlarm.addListener((a) => { if (a.name === 'fbwg-update') checkQuietly(); });
+chrome.alarms.onAlarm.addListener((a) => {
+  if (a.name === 'fbwg-update') checkQuietly();
+  if (a.name === 'fbwg-disk') reloadIfUpdatedOnDisk().catch((e) => console.warn('[FBWG] disk check failed', e));
+});
+
+// ---------- picking up files replaced by Update.cmd ----------
+// Chrome serves an unpacked extension's files straight from disk, so a newer
+// manifest.json there means Update.cmd installed a new version. Reload to run
+// it, but never in the middle of a game.
+async function diskVersion() {
+  const res = await fetch(chrome.runtime.getURL('manifest.json'), { cache: 'no-store' });
+  return (await res.json()).version;
+}
+
+async function gameInProgress() {
+  const viewers = await chrome.runtime.getContexts({ contextTypes: ['TAB'] });
+  if (viewers.some((c) => (c.documentUrl || '').includes('/viewer.html'))) return true;
+  const tabs = await chrome.tabs.query({ url: tabMatches(await currentGames()) });
+  for (const t of tabs) {
+    try {
+      const s = await chrome.tabs.sendMessage(t.id, { to: 'fbwg-host', type: 'status' });
+      if (s && s.status !== 'idle') return true;
+    } catch {}
+  }
+  return false;
+}
+
+async function reloadIfUpdatedOnDisk() {
+  const self = await chrome.management.getSelf();
+  if (self.installType !== 'development') return; // store installs update themselves
+  const onDisk = await diskVersion();
+  if (compareVersions(onDisk, chrome.runtime.getManifest().version) <= 0) return;
+  if (await gameInProgress()) {
+    await chrome.action.setBadgeText({ text: '↻' });
+    await chrome.action.setBadgeBackgroundColor({ color: '#3db7ff' });
+    return;
+  }
+  chrome.runtime.reload();
+}
 
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
-  if (!msg || msg.to !== 'fbwg-bg' || msg.type !== 'checkUpdates') return;
+  if (!msg || msg.to !== 'fbwg-bg') return;
+  if (msg.type === 'diskCheck') {
+    reloadIfUpdatedOnDisk().then(() => reply({ ok: true }), (e) => reply({ ok: false, error: e.message }));
+    return true;
+  }
+  if (msg.type !== 'checkUpdates') return;
   checkForUpdates()
     .then((remote) => reply({ ok: true, remote }))
     .catch((e) => reply({ ok: false, error: e.message }));

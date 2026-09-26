@@ -103,10 +103,67 @@ var FBWG = (() => {
   // Elements saves under "fb-<game>…".
   const SAVE_KEY_PREFIXES = ['/FB', 'fb-'];
   const SAVE_HISTORY_MAX = 10;
-  function isSaveKey(key, value) {
+  function isSaveKey(key, value, extraPrefixes = []) {
     if (typeof key !== 'string') return false;
     if (SAVE_KEY_PREFIXES.some((p) => key.startsWith(p))) return true;
+    if (extraPrefixes.some((p) => key.startsWith(p))) return true;
     return typeof value === 'string' && value.startsWith('AWAY');
+  }
+
+  // Settings the update file can change without a new version. Anything
+  // missing or out of range falls back to these defaults.
+  const DEFAULT_SETTINGS = {
+    maxBitrate: 4000000, // video quality cap, bits per second
+    maxFramerate: 60,
+    guestTimeoutMs: 8000, // host frees the slot after this much silence
+    hostTimeoutMs: 10000, // friend gives up after this much silence
+    iceServers: null, // null = PeerJS's own connection servers
+    savePrefixes: [], // extra save-entry name prefixes to back up
+  };
+
+  function num(v, min, max, fallback) {
+    return typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : fallback;
+  }
+
+  function cleanSettings(raw) {
+    const s = { ...DEFAULT_SETTINGS };
+    if (!raw || typeof raw !== 'object') return s;
+    s.maxBitrate = num(raw.maxBitrate, 250000, 20000000, s.maxBitrate);
+    s.maxFramerate = num(raw.maxFramerate, 10, 120, s.maxFramerate);
+    s.guestTimeoutMs = num(raw.guestTimeoutMs, 3000, 60000, s.guestTimeoutMs);
+    s.hostTimeoutMs = num(raw.hostTimeoutMs, 3000, 60000, s.hostTimeoutMs);
+    if (Array.isArray(raw.iceServers)) {
+      const servers = raw.iceServers.filter((x) => x && typeof x === 'object'
+        && [].concat(x.urls).every((u) => typeof u === 'string' && /^(stun|turns?):/.test(u)))
+        .slice(0, 8)
+        .map((x) => {
+          const o = { urls: x.urls };
+          if (typeof x.username === 'string') o.username = x.username;
+          if (typeof x.credential === 'string') o.credential = x.credential;
+          return o;
+        });
+      if (servers.length) s.iceServers = servers;
+    }
+    if (Array.isArray(raw.savePrefixes)) {
+      s.savePrefixes = raw.savePrefixes.filter((p) => typeof p === 'string' && p.length >= 2 && p.length <= 40).slice(0, 20);
+    }
+    return s;
+  }
+
+  function peerOptions(settings) {
+    const o = { debug: 1 };
+    if (settings && settings.iceServers) o.config = { iceServers: settings.iceServers };
+    return o;
+  }
+
+  // For extension pages and content scripts: the settings from the last update check.
+  async function loadSettings() {
+    try {
+      const { remote } = await chrome.storage.local.get('remote');
+      return cleanSettings(remote && remote.settings);
+    } catch {
+      return cleanSettings(null);
+    }
   }
 
   // "/FBForestTemple" -> "Forest Temple", "fb-elements:progress" -> "elements"
@@ -128,6 +185,6 @@ var FBWG = (() => {
   return {
     ROLE_KEYS, ROLE_NAMES, DIRECTIONS, CODE_LENGTH, newCode, normalizeCode, peerIdFor, otherRole,
     UPDATE_URL, RELEASES_URL, SITE, DEFAULT_GAMES, cleanGames, frameMatches, tabMatches, compareVersions,
-    isSaveKey, saveLabel, SAVE_HISTORY_MAX,
+    isSaveKey, saveLabel, SAVE_HISTORY_MAX, DEFAULT_SETTINGS, cleanSettings, loadSettings, peerOptions,
   };
 })();

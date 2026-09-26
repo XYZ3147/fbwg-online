@@ -14,13 +14,20 @@
     <h2>Update available</h2>
     <p><strong id="updateVersion"></strong> is ready. You have <span id="currentVersion2"></span>.</p>
     <ul id="updateNotes"></ul>
-    <button type="button" id="downloadBtn" class="primary">Download update</button>
-    <ol class="steps">
-      <li>Unzip the download into your extension folder, replacing the old files.</li>
-      <li>Click <strong>Reload extension</strong> below.</li>
-      <li>Reload any open game tab once your level is finished.</li>
-    </ol>
-    <button type="button" id="reloadExtBtn">Reload extension</button>
+    <p class="howto">Open your extension folder (the one you picked with <em>Load unpacked</em>) and
+      double-click <strong>Update.cmd</strong>. The extension restarts itself when you're not in a game.</p>
+    <details class="manual">
+      <summary>Update by hand instead</summary>
+      <ol class="steps">
+        <li><button type="button" id="downloadBtn" class="link">Download the update</button></li>
+        <li>Unzip it into your extension folder, replacing the old files.</li>
+        <li><button type="button" id="reloadExtBtn" class="link">Reload the extension</button></li>
+      </ol>
+    </details>
+  </section>
+
+  <section class="card note" id="announcementCard" hidden>
+    <p id="announcement"></p>
   </section>
 
   <section class="card" id="hostCard">

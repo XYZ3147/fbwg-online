@@ -30,7 +30,9 @@
   let lastSent = '';
   let lastPong = 0;
   let videoStatus = 'Waiting for the host to send the video…';
-  const HOST_TIMEOUT_MS = 10000;
+  // Tunable from the update file without a new version.
+  let settings = FBWG.cleanSettings(null);
+  FBWG.loadSettings().then((s) => { settings = s; });
 
   // ---------- UI helpers ----------
   function showJoin(message = '', bad = false) {
@@ -115,7 +117,7 @@
     els.joinMsg.classList.remove('bad');
     els.joinMsg.textContent = 'Connecting…';
 
-    peer = new Peer({ debug: 1 });
+    peer = new Peer(FBWG.peerOptions(settings));
     peer.on('open', () => {
       conn = peer.connect(peerIdFor(code), { reliable: true, serialization: 'json' });
       conn.on('open', () => {
@@ -231,7 +233,7 @@
   function startTimers() {
     lastPong = performance.now();
     timers.push(setInterval(() => {
-      if (performance.now() - lastPong > HOST_TIMEOUT_MS) {
+      if (performance.now() - lastPong > settings.hostTimeoutMs) {
         hostGone('Lost the connection to the host.');
         return;
       }

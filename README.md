@@ -52,25 +52,43 @@ save entries are copied, not the site's ad or tracking data.
 
 ## Updates
 
-The extension checks GitHub every 6 hours. When a new version is out, the icon shows **NEW** and
-the popup shows what changed, with a **Download update** button. You can also check any time
-with **Check for updates** at the bottom of the popup.
+The extension checks GitHub every 6 hours. When a new version is out, the icon shows **NEW**
+and the popup shows what changed. You can also check any time with **Check for updates** at
+the bottom of the popup.
 
-Chrome doesn't let extensions install their own code, so updating takes three steps:
-download, unzip over your folder, then click **Reload extension**. New games can be added without
-a new version: they come through `update.json`, and the extension picks them up automatically.
+**To update:** open your extension folder (the one you picked with *Load unpacked*) and
+double-click **Update.cmd**. It downloads the latest version from GitHub, checks that it's
+really this extension, and replaces the files. The extension notices the new files and restarts
+itself within about 30 seconds. If you're hosting or in a game, it waits and shows a blue ↻ on
+the icon until the game ends. Windows may ask for confirmation the first time you run Update.cmd.
+
+Chrome doesn't let extensions install their own code, which is why this one step is needed. Many
+changes don't need it at all: new games, save formats, connection settings and popup messages
+come through `update.json` and reach everyone automatically.
 
 ### Publishing a new version (maintainer)
 
 1. Bump `version` in `manifest.json`.
-2. Update `update.json`: the same `version`, a few `notes`, and the `games` list if games were added.
-3. Zip the folder contents as `fbwg-online.zip` and attach it to a new GitHub release.
-4. Push `update.json` to `main`. Everyone's extension sees it within 6 hours, or right away
-   when they click **Check for updates**.
+2. Update `update.json`: the same `version`, a few `notes`, and anything else below that changed.
+3. Commit, then build the zip with `git archive --format=zip -o ../fbwg-online.zip HEAD` and
+   attach it as `fbwg-online.zip` to a new GitHub release (tag `vX.Y.Z`).
+4. Push to `main`. Everyone's extension sees it within 6 hours, or right away with **Check for updates**.
 
-To add a game only, edit the `games` list in `update.json` and push. Each entry needs
-`id`, `name`, `page` (the Coolmath page path), `open` (the game-only path) and `frames`
-(paths where the game itself runs, `*` allowed). Only coolmathgames.com paths are accepted.
+### Changing things without a new version
+
+Edit `update.json` on `main` and push; no release needed.
+
+| Field | What it does |
+| --- | --- |
+| `games` | The game list. Each entry: `id`, `name`, `page` (Coolmath page path), `open` (game-only path), `frames` (paths where the game runs, `*` allowed). Only coolmathgames.com paths are accepted. |
+| `announcement` | A short message shown at the top of the popup (up to 300 characters). Empty hides it. |
+| `settings.maxBitrate` | Video quality cap in bits per second (250,000 to 20,000,000). |
+| `settings.maxFramerate` | Stream frame rate cap (10 to 120). |
+| `settings.guestTimeoutMs` / `hostTimeoutMs` | How long a silent connection is kept before it's dropped (3,000 to 60,000 ms). |
+| `settings.iceServers` | Replacement connection servers (`stun:`/`turn:` addresses), if PeerJS's own ones stop working. `null` uses PeerJS's. |
+| `settings.savePrefixes` | Extra save-entry name prefixes to back up, for games that save under other names. |
+
+Values outside the allowed ranges are ignored and the defaults are used.
 
 ## Supported games
 
@@ -90,6 +108,7 @@ Fireboy and Watergirl and Friends.
 | `popup.html/.js/.css` | Game picker, host controls, join box, update check. |
 | `save-guard.js` | Backs up each game's save to extension storage and restores it if missing. |
 | `saves.html/.js/.css` | Manage saves: export, import, older versions, delete. |
+| `Update.cmd`, `update.ps1` | One-click updater: downloads the latest release and replaces the files. |
 | `shared.js` | Key maps, game list, room-code and version helpers. |
 | `update.json` | Latest version, release notes and game list, read by the update checker. |
 | `lib/peerjs.min.js` | [PeerJS](https://peerjs.com) 1.5.5 (MIT). |

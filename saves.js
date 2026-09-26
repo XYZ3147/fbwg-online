@@ -89,7 +89,8 @@
       const data = JSON.parse(await f.text());
       if (!data || data.format !== FORMAT || typeof data.items !== 'object' || !data.items) throw new Error('That isn\'t a Fireboy & Watergirl Online save file.');
       const items = {};
-      for (const [k, v] of Object.entries(data.items)) if (typeof v === 'string' && isSaveKey(k, v)) items[k] = v;
+      const extra = (await FBWG.loadSettings()).savePrefixes;
+      for (const [k, v] of Object.entries(data.items)) if (typeof v === 'string' && isSaveKey(k, v, extra)) items[k] = v;
       if (!Object.keys(items).length) throw new Error('The file has no game saves in it.');
       await queueRestore(items, `the saves in ${f.name}`);
     } catch (err) {

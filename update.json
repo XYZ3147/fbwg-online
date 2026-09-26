@@ -1,10 +1,19 @@
 {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "notes": [
-    "Automatic backup of your saved progress, restored if the website loses it",
-    "Manage saves: export to a file, import, or go back to an older version",
-    "Joining a friend opens the game in its own window, like the host"
+    "One-click updates: double-click Update.cmd in the extension folder and the extension restarts itself",
+    "Connection and quality settings can now be adjusted from GitHub without a new version",
+    "Room for announcements in the popup"
   ],
+  "announcement": "",
+  "settings": {
+    "maxBitrate": 4000000,
+    "maxFramerate": 60,
+    "guestTimeoutMs": 8000,
+    "hostTimeoutMs": 10000,
+    "iceServers": null,
+    "savePrefixes": []
+  },
   "games": [
     {
       "id": "forest",
