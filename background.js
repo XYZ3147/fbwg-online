@@ -17,6 +17,7 @@ async function registerScripts(games) {
   if (existing.length) await chrome.scripting.unregisterContentScripts({ ids: existing.map((s) => s.id) });
   await chrome.scripting.registerContentScripts([
     { id: 'fbwg-page-hook', js: ['page-hook.js'], matches, allFrames: true, runAt: 'document_start', world: 'MAIN' },
+    { id: 'fbwg-saves', js: ['shared.js', 'save-guard.js'], matches, allFrames: true, runAt: 'document_start' },
     { id: 'fbwg-host', js: ['lib/peerjs.min.js', 'shared.js', 'host.js'], matches, allFrames: true, runAt: 'document_idle' },
   ]);
 }

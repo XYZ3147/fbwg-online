@@ -97,6 +97,9 @@ button.link {
 }
 #checkMsg { flex-basis: 100%; text-align: center; }
 
+.card.saves-line { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; }
+.card.saves-line button.link { font-size: 12px; }
+
 .card.update { border-color: color-mix(in srgb, var(--fire) 55%, var(--line)); }
 .card.update h2 { color: var(--fire); }
 .card.update p { margin: 0 0 8px; }

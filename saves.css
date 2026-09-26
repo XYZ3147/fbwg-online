@@ -1,0 +1,33 @@
+body { overflow: auto; }
+
+.page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 16px;
+}
+
+.card.wide { width: min(640px, 100%); }
+.card h2 { font-size: 15px; margin: 18px 0 6px; }
+.card h1 + p { margin-bottom: 4px; }
+.card p { color: var(--text); }
+.card p.muted, .muted { color: var(--muted); }
+
+.games { margin: 6px 0 14px; padding-left: 20px; }
+
+.check { display: flex; gap: 8px; align-items: center; margin: 8px 0 14px; }
+
+.buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.history { margin: 8px 0 0; padding-left: 20px; }
+.history li { margin-bottom: 8px; }
+.history li button { margin-left: 8px; padding: 3px 10px; font-size: 13px; }
+.history .what { color: var(--muted); }
+
+.msg { min-height: 1.4em; }
+.msg.ok { color: var(--ok) !important; }
+
+.danger #deleteBtn { border-color: color-mix(in srgb, var(--bad) 55%, transparent); color: var(--bad); }
+
+.credit { color: var(--muted); font-size: 12px; }

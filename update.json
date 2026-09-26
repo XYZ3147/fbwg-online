@@ -1,11 +1,9 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "notes": [
-    "Game keeps streaming when the host switches tabs or minimizes",
-    "Open game only button with a game picker",
-    "Leak fixes for dropped or half-open connections",
-    "Clearer messages when the video can't connect",
-    "Update checker"
+    "Automatic backup of your saved progress, restored if the website loses it",
+    "Manage saves: export to a file, import, or go back to an older version",
+    "Joining a friend opens the game in its own window, like the host"
   ],
   "games": [
     {

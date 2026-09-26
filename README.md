@@ -28,7 +28,8 @@ While hosting, the game keeps running if you switch tabs or minimize, so your fr
 picture doesn't freeze.
 
 **Friend**
-1. Click the extension button, type the code under **Join a friend**, press **Join**.
+1. Click the extension button, type the code under **Join a friend**, press **Join**. The game
+   opens in its own window, like the host's.
 2. Move with the arrow keys or W/A/D (either set controls your character). Click the
    picture to use the game's menus.
 3. Click once on the picture for sound. `F` toggles fullscreen and `M` toggles mute.
@@ -39,6 +40,15 @@ Each game saves your unlocked levels in the browser, shared between the normal g
 the game-only window. Don't run two copies of the same game at once, because they can overwrite
 each other's save. **Open game only** switches to an already open copy instead of opening a
 second one.
+
+### Backups
+
+The extension also keeps its own copy of each game's save, separate from the website's storage.
+It copies the save about every 15 seconds while a game is open, and when you close it. The latest copy is kept,
+plus up to 10 older versions at least 10 minutes apart. If the website's copy disappears (for example
+after clearing site data), it's put back the next time the game opens. **Manage** in the popup lets you export saves to
+a file, import them (also on another computer), or go back to an older version. Only the games'
+save entries are copied, not the site's ad or tracking data.
 
 ## Updates
 
@@ -78,6 +88,8 @@ Fireboy and Watergirl and Friends.
 | `host.js` | Host side: room code, WebRTC stream of the game canvas and sound, replay of the friend's input. |
 | `viewer.html/.js/.css` | Friend side: joins by code, shows the stream, sends keys and clicks. |
 | `popup.html/.js/.css` | Game picker, host controls, join box, update check. |
+| `save-guard.js` | Backs up each game's save to extension storage and restores it if missing. |
+| `saves.html/.js/.css` | Manage saves: export, import, older versions, delete. |
 | `shared.js` | Key maps, game list, room-code and version helpers. |
 | `update.json` | Latest version, release notes and game list, read by the update checker. |
 | `lib/peerjs.min.js` | [PeerJS](https://peerjs.com) 1.5.5 (MIT). |

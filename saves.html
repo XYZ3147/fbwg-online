@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Saved progress · Fireboy &amp; Watergirl Online</title>
+  <link rel="icon" href="icons/icon32.png">
+  <link rel="stylesheet" href="viewer.css">
+  <link rel="stylesheet" href="saves.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="brand"><span class="fire">Fireboy</span> <span class="amp">&amp;</span> <span class="water">Watergirl</span> <span class="tag">Online</span></div>
+  </header>
+
+  <main class="page">
+    <section class="card wide">
+      <h1>Saved progress</h1>
+      <p>The extension keeps its own copy of your game saves, separate from the website's. If the
+        website's copy is lost (for example after clearing site data), it's put back the next time
+        you open the game.</p>
+
+      <h2>Latest backup</h2>
+      <p id="latestInfo" class="muted">No backup yet. Open a Fireboy and Watergirl game and finish a level.</p>
+      <ul id="latestGames" class="games"></ul>
+
+      <label class="check">
+        <input type="checkbox" id="autoRestore" checked>
+        <span>Restore missing saves automatically</span>
+      </label>
+
+      <div class="buttons">
+        <button type="button" id="exportBtn">Export to a file</button>
+        <button type="button" id="importBtn">Import a file</button>
+        <input type="file" id="importFile" accept=".json,application/json" hidden>
+      </div>
+      <p id="msg" class="msg" role="status"></p>
+    </section>
+
+    <section class="card wide">
+      <h2>Older versions</h2>
+      <p class="muted">Kept at least 10 minutes apart, up to 10. Restoring one replaces the saves of the games
+        it contains the next time a game opens.</p>
+      <ol id="history" class="history"></ol>
+      <p id="noHistory" class="muted">None yet.</p>
+    </section>
+
+    <section class="card wide danger">
+      <h2>Delete backups</h2>
+      <p class="muted">Removes the extension's copies only. The saves inside the games stay as they are.</p>
+      <button type="button" id="deleteBtn">Delete all backups</button>
+    </section>
+
+    <p class="credit">Made by XYZ</p>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="saves.js"></script>
+</body>
+</html>

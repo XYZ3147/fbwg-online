@@ -98,6 +98,23 @@ var FBWG = (() => {
     return [...set];
   }
 
+  // Which site storage entries are game saves (the rest is ads and trackers).
+  // Temple games (Flash engine) save as "/FB<Game>" in "AWAY…" format;
+  // Elements saves under "fb-<game>…".
+  const SAVE_KEY_PREFIXES = ['/FB', 'fb-'];
+  const SAVE_HISTORY_MAX = 10;
+  function isSaveKey(key, value) {
+    if (typeof key !== 'string') return false;
+    if (SAVE_KEY_PREFIXES.some((p) => key.startsWith(p))) return true;
+    return typeof value === 'string' && value.startsWith('AWAY');
+  }
+
+  // "/FBForestTemple" -> "Forest Temple", "fb-elements:progress" -> "elements"
+  function saveLabel(key) {
+    const k = key.replace(/^\/FB|^fb-/, '').replace(/[:_].*$/, '');
+    return k.replace(/([a-z])([A-Z])/g, '$1 $2') || key;
+  }
+
   function compareVersions(a, b) {
     const pa = String(a).split('.').map(Number);
     const pb = String(b).split('.').map(Number);
@@ -111,5 +128,6 @@ var FBWG = (() => {
   return {
     ROLE_KEYS, ROLE_NAMES, DIRECTIONS, CODE_LENGTH, newCode, normalizeCode, peerIdFor, otherRole,
     UPDATE_URL, RELEASES_URL, SITE, DEFAULT_GAMES, cleanGames, frameMatches, tabMatches, compareVersions,
+    isSaveKey, saveLabel, SAVE_HISTORY_MAX,
   };
 })();

@@ -179,6 +179,20 @@
     chrome.tabs.create({ url: RELEASES_URL + '/download/fbwg-online.zip' });
   });
   $('reloadExtBtn').addEventListener('click', () => chrome.runtime.reload());
+  $('savesBtn').addEventListener('click', () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('saves.html') });
+    window.close();
+  });
+
+  async function showSaves() {
+    const { saves } = await chrome.storage.local.get('saves');
+    const cur = saves && saves.current;
+    if (!cur) return;
+    const mins = Math.round((Date.now() - cur.updated) / 60000);
+    const age = mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` : mins < 1440 ? `${Math.round(mins / 60)} h ago` : `${Math.round(mins / 1440)} days ago`;
+    const n = Object.keys(cur.items).length;
+    $('savesInfo').textContent = `Saved progress: ${n} game${n > 1 ? 's' : ''} backed up ${age}`;
+  }
   $('gameSelect').addEventListener('change', (e) => {
     $('conflictBox').hidden = true;
     try { localStorage.setItem('fbwg-game', e.target.value); } catch {}
@@ -220,13 +234,18 @@
       $('joinCode').focus();
       return;
     }
-    chrome.tabs.create({ url: chrome.runtime.getURL('viewer.html?code=' + code) });
+    // Same kind of window as the host's game-only window.
+    chrome.windows.create({
+      url: chrome.runtime.getURL('viewer.html?code=' + code),
+      type: 'popup', width: 960, height: 800, focused: true,
+    });
     window.close();
   });
 
   (async () => {
     $('currentVersion').textContent = VERSION;
     fillGames();
+    showSaves();
     const { remote } = await chrome.storage.local.get('remote');
     applyRemote(remote);
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
