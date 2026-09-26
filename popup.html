@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="icons/icon32.png" alt="" width="24" height="24">
+    <h1><span class="fire">Fireboy</span> &amp; <span class="water">Watergirl</span> Online</h1>
+  </header>
+
+  <section class="card update" id="updateCard" hidden>
+    <h2>Update available</h2>
+    <p><strong id="updateVersion"></strong> is ready. You have <span id="currentVersion2"></span>.</p>
+    <ul id="updateNotes"></ul>
+    <button type="button" id="downloadBtn" class="primary">Download update</button>
+    <ol class="steps">
+      <li>Unzip the download into your extension folder, replacing the old files.</li>
+      <li>Click <strong>Reload extension</strong> below.</li>
+      <li>Reload any open game tab once your level is finished.</li>
+    </ol>
+    <button type="button" id="reloadExtBtn">Reload extension</button>
+  </section>
+
+  <section class="card" id="hostCard">
+    <h2>Host a game</h2>
+
+    <div id="notOnGame" hidden>
+      <p class="muted" id="notOnGameText">Pick a game to host. It opens in its own window, without the rest of the website.</p>
+      <label class="row">
+        <span>Game</span>
+        <select id="gameSelect"></select>
+      </label>
+      <button type="button" id="openGameBtn" class="primary">Open game only</button>
+      <div id="conflictBox" class="notice" hidden>
+        <p>This game is already open in another tab. Running two copies can overwrite your saved levels.</p>
+        <button type="button" id="conflictGoBtn">Go to it</button>
+        <button type="button" id="conflictSwitchBtn">Close it, open game only</button>
+        <p class="small">Finished levels are kept. A level you're in the middle of restarts.</p>
+      </div>
+    </div>
+
+    <div id="hostControls" hidden>
+      <button type="button" id="goToGameBtn" class="ghost top" hidden>Show the game window</button>
+      <label class="row">
+        <span>Your friend plays</span>
+        <select id="roleSelect">
+          <option value="watergirl">Watergirl</option>
+          <option value="fireboy">Fireboy</option>
+        </select>
+      </label>
+      <label class="row check">
+        <input type="checkbox" id="lockCheck" checked>
+        <span>Stop my keyboard from moving my friend's character</span>
+      </label>
+
+      <button type="button" id="startBtn" class="primary">Start hosting</button>
+
+      <div id="roomBox" hidden>
+        <p class="muted">Send this code to your friend:</p>
+        <div class="code-row">
+          <output id="codeOut" class="code"></output>
+          <button type="button" id="copyBtn">Copy</button>
+        </div>
+        <p class="status" id="hostStatus" role="status"></p>
+        <button type="button" id="stopBtn" class="ghost">Stop hosting</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Join a friend</h2>
+    <form id="joinForm" autocomplete="off">
+      <input id="joinCode" maxlength="8" placeholder="CODE" spellcheck="false" aria-label="Room code">
+      <button type="submit" class="primary">Join</button>
+    </form>
+    <p class="muted small">Opens the game view in a new tab. You don't need the game open.</p>
+  </section>
+
+  <footer class="credit">
+    <span>Made by XYZ · v<span id="currentVersion"></span></span>
+    <button type="button" id="checkBtn" class="link">Check for updates</button>
+    <span id="checkMsg" role="status"></span>
+  </footer>
+
+  <script src="shared.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

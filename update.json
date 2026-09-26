@@ -1,0 +1,66 @@
+{
+  "version": "1.1.0",
+  "notes": [
+    "Game keeps streaming when the host switches tabs or minimizes",
+    "Open game only button with a game picker",
+    "Leak fixes for dropped or half-open connections",
+    "Clearer messages when the video can't connect",
+    "Update checker"
+  ],
+  "games": [
+    {
+      "id": "forest",
+      "name": "Forest Temple",
+      "page": "/0-fireboy-and-water-girl-in-the-forest-temple",
+      "open": "/0-fireboy-and-water-girl-in-the-forest-temple/play",
+      "frames": [
+        "/0-fireboy-and-water-girl-in-the-forest-temple/play*"
+      ]
+    },
+    {
+      "id": "light",
+      "name": "2: Light Temple",
+      "page": "/0-fireboy-watergirl-2-light-temple",
+      "open": "/0-fireboy-watergirl-2-light-temple/play",
+      "frames": [
+        "/0-fireboy-watergirl-2-light-temple/play*"
+      ]
+    },
+    {
+      "id": "ice",
+      "name": "3: Ice Temple",
+      "page": "/0-fireboy-watergirl-3-ice-temple",
+      "open": "/0-fireboy-watergirl-3-ice-temple/play",
+      "frames": [
+        "/0-fireboy-watergirl-3-ice-temple/play*"
+      ]
+    },
+    {
+      "id": "crystal",
+      "name": "4: Crystal Temple",
+      "page": "/0-fireboy-watergirl-4-crystal-temple",
+      "open": "/0-fireboy-watergirl-4-crystal-temple/play",
+      "frames": [
+        "/0-fireboy-watergirl-4-crystal-temple/play*"
+      ]
+    },
+    {
+      "id": "elements",
+      "name": "5: Elements",
+      "page": "/0-fireboy-watergirl-5-elements",
+      "open": "/sites/default/files/public_games/40218/",
+      "frames": [
+        "/sites/default/files/public_games/40218/*"
+      ]
+    },
+    {
+      "id": "friends",
+      "name": "and Friends",
+      "page": "/0-fireboy-and-watergirl-and-friends",
+      "open": "/sites/default/files/public_games/56292/",
+      "frames": [
+        "/sites/default/files/public_games/56292/*"
+      ]
+    }
+  ]
+}

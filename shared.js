@@ -1,0 +1,115 @@
+// Shared between the host content script, the popup and the guest viewer.
+var FBWG = (() => {
+  const PEER_PREFIX = 'fbwg-online-';
+  const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const CODE_LENGTH = 5;
+
+  // The keys the game itself reads for each character.
+  const ROLE_KEYS = {
+    fireboy: {
+      up: { key: 'ArrowUp', code: 'ArrowUp', keyCode: 38 },
+      left: { key: 'ArrowLeft', code: 'ArrowLeft', keyCode: 37 },
+      right: { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39 },
+      down: { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40 },
+    },
+    watergirl: {
+      up: { key: 'w', code: 'KeyW', keyCode: 87 },
+      left: { key: 'a', code: 'KeyA', keyCode: 65 },
+      right: { key: 'd', code: 'KeyD', keyCode: 68 },
+      down: { key: 's', code: 'KeyS', keyCode: 83 },
+    },
+  };
+
+  const ROLE_NAMES = { fireboy: 'Fireboy', watergirl: 'Watergirl' };
+  const DIRECTIONS = ['up', 'left', 'right', 'down'];
+
+  function newCode() {
+    const bytes = crypto.getRandomValues(new Uint8Array(CODE_LENGTH));
+    return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
+  }
+
+  function normalizeCode(raw) {
+    return String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+
+  function peerIdFor(code) {
+    return PEER_PREFIX + normalizeCode(code).toLowerCase();
+  }
+
+  function otherRole(role) {
+    return role === 'fireboy' ? 'watergirl' : 'fireboy';
+  }
+
+  // Where new versions and new games are announced. The file holds data only
+  // (version, notes, game addresses); Chrome does not allow extensions to
+  // download code, so new code arrives as a new zip the user installs.
+  const UPDATE_URL = 'https://raw.githubusercontent.com/XYZ3147/fbwg-online/main/update.json';
+  const RELEASES_URL = 'https://github.com/XYZ3147/fbwg-online/releases/latest';
+
+  const SITE = 'https://www.coolmathgames.com';
+  // `open` is the game-only address; `frames` are where the game itself runs,
+  // which is where the extension loads. The update file can replace this list.
+  const DEFAULT_GAMES = [
+    { id: 'forest', name: 'Forest Temple', page: '/0-fireboy-and-water-girl-in-the-forest-temple',
+      open: '/0-fireboy-and-water-girl-in-the-forest-temple/play', frames: ['/0-fireboy-and-water-girl-in-the-forest-temple/play*'] },
+    { id: 'light', name: '2: Light Temple', page: '/0-fireboy-watergirl-2-light-temple',
+      open: '/0-fireboy-watergirl-2-light-temple/play', frames: ['/0-fireboy-watergirl-2-light-temple/play*'] },
+    { id: 'ice', name: '3: Ice Temple', page: '/0-fireboy-watergirl-3-ice-temple',
+      open: '/0-fireboy-watergirl-3-ice-temple/play', frames: ['/0-fireboy-watergirl-3-ice-temple/play*'] },
+    { id: 'crystal', name: '4: Crystal Temple', page: '/0-fireboy-watergirl-4-crystal-temple',
+      open: '/0-fireboy-watergirl-4-crystal-temple/play', frames: ['/0-fireboy-watergirl-4-crystal-temple/play*'] },
+    { id: 'elements', name: '5: Elements', page: '/0-fireboy-watergirl-5-elements',
+      open: '/sites/default/files/public_games/40218/', frames: ['/sites/default/files/public_games/40218/*'] },
+    { id: 'friends', name: 'and Friends', page: '/0-fireboy-and-watergirl-and-friends',
+      open: '/sites/default/files/public_games/56292/', frames: ['/sites/default/files/public_games/56292/*'] },
+  ];
+
+  const SAFE_PATH = /^\/[A-Za-z0-9_\-./*]*$/;
+
+  // Keep only well-formed entries on coolmathgames.com, so a bad update file
+  // can't point the extension anywhere else.
+  function cleanGames(list) {
+    if (!Array.isArray(list)) return null;
+    const out = list.filter((g) => g && typeof g.id === 'string' && typeof g.name === 'string'
+      && typeof g.page === 'string' && SAFE_PATH.test(g.page)
+      && typeof g.open === 'string' && SAFE_PATH.test(g.open) && !g.open.includes('*')
+      && Array.isArray(g.frames) && g.frames.length && g.frames.every((f) => typeof f === 'string' && SAFE_PATH.test(f)))
+      .map((g) => ({ id: g.id, name: g.name.slice(0, 60), page: g.page, open: g.open, frames: g.frames }));
+    return out.length ? out : null;
+  }
+
+  // Match patterns for where the extension should load (both site hostnames).
+  function frameMatches(games) {
+    const set = new Set();
+    for (const g of games) for (const f of g.frames) {
+      set.add(SITE + f);
+      set.add('https://coolmathgames.com' + f);
+    }
+    return [...set];
+  }
+
+  // Match patterns for any open tab of these games (page or game-only).
+  function tabMatches(games) {
+    const set = new Set(frameMatches(games));
+    for (const g of games) {
+      set.add(SITE + g.page + '*');
+      set.add('https://coolmathgames.com' + g.page + '*');
+    }
+    return [...set];
+  }
+
+  function compareVersions(a, b) {
+    const pa = String(a).split('.').map(Number);
+    const pb = String(b).split('.').map(Number);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      const d = (pa[i] || 0) - (pb[i] || 0);
+      if (d) return d > 0 ? 1 : -1;
+    }
+    return 0;
+  }
+
+  return {
+    ROLE_KEYS, ROLE_NAMES, DIRECTIONS, CODE_LENGTH, newCode, normalizeCode, peerIdFor, otherRole,
+    UPDATE_URL, RELEASES_URL, SITE, DEFAULT_GAMES, cleanGames, frameMatches, tabMatches, compareVersions,
+  };
+})();

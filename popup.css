@@ -1,0 +1,112 @@
+:root {
+  --bg: #0b0f17;
+  --panel: #141a26;
+  --line: #243044;
+  --text: #e8edf6;
+  --muted: #8b97ab;
+  --fire: #ff6a3d;
+  --water: #3db7ff;
+  --ok: #2ecc71;
+  --warn: #f5b400;
+  --bad: #ff5a5a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+body {
+  width: 320px;
+  margin: 0;
+  padding: 12px;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+h1 { font-size: 15px; margin: 0; }
+h2 { font-size: 13px; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+.fire { color: var(--fire); }
+.water { color: var(--water); }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.muted { color: var(--muted); margin: 0 0 10px; }
+.small { font-size: 12px; margin: 8px 0 0; }
+
+.row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.row.check { justify-content: flex-start; align-items: flex-start; }
+.row.check input { margin: 2px 0 0; }
+
+select, input {
+  font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px;
+}
+
+button {
+  font: inherit; font-weight: 600; color: var(--text); background: #243044;
+  border: 1px solid #2f3d55; border-radius: 8px; padding: 7px 12px; cursor: pointer;
+}
+button:hover { background: #2c3a52; }
+button:disabled { opacity: .6; cursor: default; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--water); outline-offset: 2px; }
+button.primary { width: 100%; border: 0; color: #0b0f17; background: linear-gradient(90deg, var(--fire), var(--water)); }
+button.ghost { width: 100%; background: transparent; margin-top: 8px; }
+
+#roomBox { margin-top: 12px; }
+
+button.ghost.top { margin: 0 0 10px; }
+
+.notice {
+  margin-top: 10px; padding: 10px; border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+}
+.notice p { margin: 0 0 8px; }
+.notice .small { color: var(--muted); margin: 8px 0 0; }
+.notice button { width: 100%; margin-top: 6px; }
+
+.code-row { display: flex; gap: 8px; align-items: stretch; }
+.code {
+  flex: 1; display: grid; place-items: center;
+  font: 800 26px/1 ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: 6px;
+  background: var(--bg); border: 1px dashed var(--line); border-radius: 8px; padding: 8px;
+  user-select: all;
+}
+
+.status { margin: 10px 0 0; display: flex; align-items: center; gap: 6px; }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); flex: none; }
+.status.connected::before { background: var(--ok); }
+.status.error { color: var(--bad); }
+.status.error::before { background: var(--bad); }
+
+.credit {
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 4px 8px;
+  color: var(--muted); font-size: 11px; margin-top: 2px;
+}
+button.link {
+  background: none; border: 0; padding: 0; font-size: 11px; font-weight: 600;
+  color: var(--water); text-decoration: underline; cursor: pointer;
+}
+#checkMsg { flex-basis: 100%; text-align: center; }
+
+.card.update { border-color: color-mix(in srgb, var(--fire) 55%, var(--line)); }
+.card.update h2 { color: var(--fire); }
+.card.update p { margin: 0 0 8px; }
+.card.update ul { margin: 0 0 10px; padding-left: 18px; }
+.steps { margin: 10px 0; padding-left: 18px; color: var(--muted); }
+.card.update > button:not(.primary) { width: 100%; }
+
+form { display: flex; gap: 8px; }
+form input {
+  flex: 1; min-width: 0; font: 700 16px/1 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  letter-spacing: 4px; text-transform: uppercase; text-align: center;
+}
+form button.primary { width: auto; padding: 0 16px; }
