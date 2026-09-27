@@ -7,7 +7,7 @@
     joinCard: $('joinCard'), joinForm: $('joinForm'), codeInput: $('codeInput'), joinBtn: $('joinBtn'),
     joinMsg: $('joinMsg'), screen: $('screen'), video: $('video'), overlay: $('overlay'),
     info: $('info'), roleChip: $('roleChip'), hint: $('hint'), stats: $('stats'),
-    actions: $('actions'), soundBtn: $('soundBtn'), fullBtn: $('fullBtn'), leaveBtn: $('leaveBtn'),
+    actions: $('actions'), soundBtn: $('soundBtn'), fitBtn: $('fitBtn'), fullBtn: $('fullBtn'), leaveBtn: $('leaveBtn'),
     unmuteBtn: $('unmuteBtn'),
   };
 
@@ -406,15 +406,20 @@
   document.addEventListener('visibilitychange', () => { if (document.hidden && conn) releaseAll(); });
 
   // Map a point on the <video> element to 0..1 inside the letterboxed picture.
+  // Works for every picture size: fit (bars), zoom (edges cut off) and stretch.
   function videoPoint(e) {
     const v = els.video;
     const r = v.getBoundingClientRect();
     const vw = v.videoWidth;
     const vh = v.videoHeight;
     if (!vw || !vh) return null;
-    const scale = Math.min(r.width / vw, r.height / vh);
-    const w = vw * scale;
-    const h = vh * scale;
+    let w = r.width;
+    let h = r.height;
+    if (fitMode !== 'stretch') {
+      const scale = (fitMode === 'zoom' ? Math.max : Math.min)(r.width / vw, r.height / vh);
+      w = vw * scale;
+      h = vh * scale;
+    }
     const x = (e.clientX - r.left - (r.width - w) / 2) / w;
     const y = (e.clientY - r.top - (r.height - h) / 2) / h;
     if (x < 0 || x > 1 || y < 0 || y > 1) return null;
@@ -446,6 +451,30 @@
     if (document.fullscreenElement) document.exitFullscreen();
     else els.screen.requestFullscreen().catch(() => {});
   }
+
+  // ---------- picture size ----------
+  const FIT_MODES = ['fit', 'stretch', 'zoom'];
+  const FIT_LABELS = { fit: 'Fit', stretch: 'Stretch', zoom: 'Zoom' };
+  const FIT_TITLES = {
+    fit: 'Whole picture, correct shape (black bars). Click for Stretch.',
+    stretch: 'Fills the window; the picture gets wider. Click for Zoom.',
+    zoom: 'Fills the window, correct shape; edges are cut off. Click for Fit.',
+  };
+  let fitMode = 'fit';
+  try { if (FIT_MODES.includes(localStorage.getItem('fbwg-fit'))) fitMode = localStorage.getItem('fbwg-fit'); } catch {}
+
+  function applyFit() {
+    for (const m of FIT_MODES) els.screen.classList.toggle('fit-' + m, m === fitMode);
+    els.fitBtn.textContent = FIT_LABELS[fitMode];
+    els.fitBtn.title = FIT_TITLES[fitMode];
+  }
+
+  els.fitBtn.addEventListener('click', () => {
+    fitMode = FIT_MODES[(FIT_MODES.indexOf(fitMode) + 1) % FIT_MODES.length];
+    try { localStorage.setItem('fbwg-fit', fitMode); } catch {}
+    applyFit();
+  });
+  applyFit();
 
   els.fullBtn.addEventListener('click', toggleFullscreen);
   els.soundBtn.addEventListener('click', () => toggleSound());

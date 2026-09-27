@@ -105,6 +105,8 @@ video {
   border-radius: 8px; cursor: pointer;
 }
 .screen:fullscreen video { border-radius: 0; }
+.screen.fit-stretch video { object-fit: fill; }
+.screen.fit-zoom video { object-fit: cover; }
 
 .overlay {
   position: absolute; inset: 0; display: grid; place-items: center; text-align: center;

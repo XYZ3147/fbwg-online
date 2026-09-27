@@ -34,7 +34,8 @@ picture doesn't freeze.
    picture to use the game's menus.
 3. The top right shows frames per second, ping, the video buffer delay, and whether the connection is
    **direct** or **relayed** (relayed adds lag; it happens on strict networks).
-4. Click once on the picture for sound. `F` toggles fullscreen and `M` toggles mute.
+4. Click once on the picture for sound. `F` toggles fullscreen and `M` toggles mute. The **Fit** button switches
+   the picture between Fit (whole picture), Stretch (fills the window, a bit wider) and Zoom (fills it, edges cut off).
 
 ## Saved progress
 

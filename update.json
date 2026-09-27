@@ -1,10 +1,8 @@
 {
-  "version": "1.4.0",
+  "version": "1.5.0",
   "notes": [
-    "Less input lag: keys travel on a fast channel that never waits behind a lost packet",
-    "Smoother video: the stream is capped at 960 px wide, so a big host window no longer slows it down",
-    "The game keeps running even when Windows pauses a window that is behind others",
-    "The friend window shows the buffer delay and whether the connection is direct or relayed"
+    "Picture size button in the friend window: Fit (whole picture), Stretch (fills the window, a bit wider) or Zoom (fills the window, edges cut off)",
+    "Your choice is remembered, and clicks land in the right place in every mode"
   ],
   "announcement": "",
   "settings": {
