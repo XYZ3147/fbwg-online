@@ -5,6 +5,8 @@
   const CAPTURE_MS = 10000;
 
   let controls = cleanControls(null);
+  let players = FBWG.cleanPlayers(null);
+  FBWG.loadPlayers().then((p) => { players = p; lastListSig = ''; });
   let capture = null; // { dir, baseline, until } while waiting for a button press
 
   async function save() {
@@ -130,9 +132,32 @@
     return a.type === b.type && a.index === b.index && (a.type === 'button' || a.dir === b.dir);
   }
 
+  // Every connected controller and the character it plays (set on the Players screen).
+  let lastListSig = '';
+  function renderPadList() {
+    const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter((p) => p && p.connected) : [];
+    const sig = JSON.stringify([pads.map(FBWG.padKey), players]);
+    if (sig === lastListSig) return;
+    lastListSig = sig;
+    const ul = $('padList');
+    ul.textContent = '';
+    pads.forEach((p, i) => {
+      const side = players.pads[FBWG.padKey(p)] || 'none';
+      const li = document.createElement('li');
+      li.append(`Controller ${i + 1} (${FBWG.padName(p)}): `);
+      const s = document.createElement('span');
+      s.className = side === 'fireboy' ? 'fire' : side === 'watergirl' ? 'water' : '';
+      s.textContent = side === 'none' ? 'no side chosen (plays your character when you host)' : FBWG.ROLE_NAMES[side];
+      li.append(s);
+      ul.append(li);
+    });
+    ul.hidden = !pads.length;
+  }
+
   // ---------- live loop: capture + highlight active actions ----------
   let lastPadId = null;
   function loop() {
+    renderPadList();
     const pad = firstPad();
     const id = pad ? pad.id : null;
     if (id !== lastPadId) {
@@ -193,7 +218,11 @@
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && capture) stopCapture('');
   });
+  $('playersLink').addEventListener('click', () => {
+    chrome.windows.create({ url: chrome.runtime.getURL('players.html'), type: 'popup', width: 860, height: 720, focused: true });
+  });
   chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.players) { players = FBWG.cleanPlayers(changes.players.newValue); lastListSig = ''; }
     if (area === 'local' && changes.controls && !capture) {
       controls = cleanControls(changes.controls.newValue);
       renderAll();

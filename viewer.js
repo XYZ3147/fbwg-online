@@ -7,7 +7,7 @@
     joinCard: $('joinCard'), joinForm: $('joinForm'), codeInput: $('codeInput'), joinBtn: $('joinBtn'),
     joinMsg: $('joinMsg'), screen: $('screen'), video: $('video'), overlay: $('overlay'),
     info: $('info'), roleChip: $('roleChip'), hint: $('hint'), stats: $('stats'),
-    actions: $('actions'), soundBtn: $('soundBtn'), fitBtn: $('fitBtn'), fullBtn: $('fullBtn'), leaveBtn: $('leaveBtn'),
+    actions: $('actions'), soundBtn: $('soundBtn'), qualityBtn: $('qualityBtn'), signalLayer: $('signalLayer'), fitBtn: $('fitBtn'), fullBtn: $('fullBtn'), leaveBtn: $('leaveBtn'),
     unmuteBtn: $('unmuteBtn'), controlsBtn: $('controlsBtn'),
   };
 
@@ -160,7 +160,7 @@
     if (!role) return;
     const keys = LAYOUT_NAMES[layoutFor(role, controls.keyboard)];
     const pad = controls.gamepad.enabled && padConnected() ? ' or your controller' : '';
-    els.hint.textContent = `Move with ${keys}${pad} · click the game to use menus`;
+    els.hint.textContent = `Move with ${keys}${pad} · click the game for menus · 1–4 to signal · right-click to point`;
   }
   window.addEventListener('gamepadconnected', updateHint);
   window.addEventListener('gamepaddisconnected', updateHint);
@@ -189,7 +189,7 @@
       if (conn && conn.open) return;
       if (rejoin) retrySoon();
       else { teardown(); showJoin('Could not reach the host. Check the code and try again.', true); }
-    }, 12000);
+    }, rejoin ? 12000 : 25000);
 
     peer = new Peer(FBWG.peerOptions(settings));
     peer.on('open', () => {
@@ -201,6 +201,7 @@
         refreshOverlay();
         startTimers();
         openFastChannel(code);
+        send({ t: 'quality', mode: quality });
       });
       conn.on('data', onHostData);
       conn.on('close', () => connectionLost());
@@ -265,6 +266,9 @@
         break;
       case 'bye':
         hostSaidBye = true;
+        break;
+      case 'signal':
+        showSignal(msg, role ? FBWG.otherRole(role) : 'fireboy');
         break;
       case 'error':
         setVideoStatus('The host could not start the video: ' + msg.message);
@@ -471,6 +475,7 @@
     if (fps != null) parts.push(`${Math.round(fps)} fps`);
     if (rtt != null) parts.push(`${Math.round(rtt)} ms ping`);
     if (buffer != null) parts.push(`${Math.round(buffer)} ms buffer`);
+    if (els.video.videoWidth) parts.push(`${els.video.videoWidth}×${els.video.videoHeight}`);
     if (path) parts.push(path);
     els.stats.textContent = parts.join(' · ');
   }
@@ -513,6 +518,8 @@
       if (e.repeat) return;
       pressed.add(e.code);
       sendKeys();
+    } else if (['Digit1', 'Digit2', 'Digit3', 'Digit4'].includes(e.code) && !e.repeat) {
+      sendSignal({ kind: 'msg', i: +e.code.slice(5) - 1 });
     } else if (e.code === 'KeyF' && !e.repeat) {
       toggleFullscreen();
     } else if (e.code === 'KeyM' && !e.repeat) {
@@ -575,6 +582,62 @@
     if (document.fullscreenElement) document.exitFullscreen();
     else els.screen.requestFullscreen().catch(() => {});
   }
+
+  // ---------- quick signals ----------
+  // Where the game picture actually is inside the video element, for the given picture size.
+  function pictureBox() {
+    const v = els.video;
+    const r = v.getBoundingClientRect();
+    const s = els.screen.getBoundingClientRect();
+    const vw = v.videoWidth;
+    const vh = v.videoHeight;
+    let w = r.width;
+    let h = r.height;
+    if (vw && vh && fitMode !== 'stretch') {
+      const scale = (fitMode === 'zoom' ? Math.max : Math.min)(r.width / vw, r.height / vh);
+      w = vw * scale;
+      h = vh * scale;
+    }
+    return { left: r.left - s.left + (r.width - w) / 2, top: r.top - s.top + (r.height - h) / 2, w, h };
+  }
+
+  function showSignal(sig, from) {
+    const b = pictureBox();
+    Object.assign(els.signalLayer.style, { left: b.left + 'px', top: b.top + 'px', width: b.w + 'px', height: b.h + 'px' });
+    FBWG.renderSignal(els.signalLayer, sig, from);
+  }
+
+  function sendSignal(sig) {
+    if (!conn || !conn.open) return;
+    send({ t: 'signal', ...sig });
+    showSignal(sig, role || 'watergirl');
+  }
+
+  FBWG.injectSignalStyles(document);
+  els.video.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const p = videoPoint(e);
+    if (p) sendSignal({ kind: 'mark', x: p.x, y: p.y });
+  });
+
+  // ---------- picture quality ----------
+  const QUALITY_TITLES = {
+    smooth: 'Smooth: smaller picture, fewest hiccups. Click for Sharp.',
+    sharp: 'Sharp: full-size picture; needs a fast connection. Click for Smooth.',
+  };
+  let quality = 'smooth';
+  try { if (localStorage.getItem('fbwg-quality') === 'sharp') quality = 'sharp'; } catch {}
+  function applyQuality() {
+    els.qualityBtn.textContent = quality === 'sharp' ? 'Sharp' : 'Smooth';
+    els.qualityBtn.title = QUALITY_TITLES[quality];
+  }
+  els.qualityBtn.addEventListener('click', () => {
+    quality = quality === 'sharp' ? 'smooth' : 'sharp';
+    try { localStorage.setItem('fbwg-quality', quality); } catch {}
+    applyQuality();
+    send({ t: 'quality', mode: quality });
+  });
+  applyQuality();
 
   // ---------- picture size ----------
   const FIT_MODES = ['fit', 'stretch', 'zoom'];

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Players · Fireboy &amp; Watergirl Online</title>
+  <link rel="icon" href="icons/icon32.png">
+  <link rel="stylesheet" href="viewer.css">
+  <link rel="stylesheet" href="players.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="brand"><span class="fire">Fireboy</span> <span class="amp">&amp;</span> <span class="water">Watergirl</span> <span class="tag">Online</span></div>
+    <div class="actions"><button type="button" id="doneBtn">Done</button></div>
+  </header>
+
+  <main class="players-page">
+    <h1>Choose your side</h1>
+    <p class="lead">Push your controller's stick or D-pad <strong>left</strong> for Fireboy or <strong>right</strong> for
+      Watergirl. The keyboard uses the arrow buttons on its card. Changes apply to an open game right away.</p>
+
+    <div class="sides" role="group" aria-label="Sides">
+      <div class="side fire-side"><h2>🔥 Fireboy</h2></div>
+      <div class="side middle"><h2>Not playing</h2></div>
+      <div class="side water-side"><h2>💧 Watergirl</h2></div>
+    </div>
+    <div class="lanes" id="lanes"></div>
+
+    <section class="summary">
+      <h2>Connected controllers</h2>
+      <ul id="summary"></ul>
+      <p class="muted" id="noPads">No controllers found. Connect one and press any button on it.</p>
+      <p class="muted small">Playing online as the host? Controllers on your character's side play your character
+        (if none are, the first controller does). Buttons and key layout are set on the
+        <button type="button" class="link" id="controlsLink">Controls</button> page.</p>
+    </section>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="players.js"></script>
+</body>
+</html>

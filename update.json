@@ -1,12 +1,11 @@
 {
-  "version": "1.6.0",
+  "version": "1.7.0",
   "notes": [
-    "Controls page: play with arrow keys or WASD as either character, and use a controller with buttons you choose",
-    "Automatic reconnect: if the connection drops, the friend gets back into the game by themselves",
-    "Invite links: send a link instead of a code",
-    "Extra connection servers so more connections go direct instead of through a relay",
-    "Picture size button in the friend window: Fit, Stretch or Zoom",
-    "Backups now also cover and Friends owned items"
+    "Two players on one computer: a Choose sides screen for two controllers, or keyboard + controller",
+    "The popup and Controls page list connected controllers and the character each one plays",
+    "If the host game reloads or crashes, it keeps the same room code and the friend gets straight back in",
+    "Quick signals: keys 1-4 for Wait!/Go!/Help!/Nice!, plus a marker to point at a spot",
+    "Smooth / Sharp picture quality button in the friend window"
   ],
   "announcement": "",
   "settings": {

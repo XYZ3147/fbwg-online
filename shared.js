@@ -126,6 +126,86 @@ var FBWG = (() => {
     return `${stick} ${arrow}`;
   }
 
+  // ---------- players (side selection for local play) ----------
+  // keyboard: 'fireboy' | 'both' | 'watergirl'; pads: { padKey: 'fireboy' | 'none' | 'watergirl' }
+  const DEFAULT_PLAYERS = { keyboard: 'both', pads: {} };
+
+  // Two identical controllers report the same name, so the slot number is part of the key.
+  function padKey(pad) {
+    return `${pad.index}|${pad.id}`;
+  }
+
+  function padName(pad) {
+    const name = String(pad.id || '').replace(/\s*\(.*$/, '').trim();
+    return name || 'Controller';
+  }
+
+  function cleanPlayers(raw) {
+    const p = { keyboard: DEFAULT_PLAYERS.keyboard, pads: {} };
+    if (!raw || typeof raw !== 'object') return p;
+    if (['fireboy', 'both', 'watergirl'].includes(raw.keyboard)) p.keyboard = raw.keyboard;
+    if (raw.pads && typeof raw.pads === 'object') {
+      for (const [k, v] of Object.entries(raw.pads).slice(0, 16)) {
+        if (typeof k === 'string' && k.length < 200 && ['fireboy', 'none', 'watergirl'].includes(v)) p.pads[k] = v;
+      }
+    }
+    return p;
+  }
+
+  async function loadPlayers() {
+    try {
+      const { players } = await chrome.storage.local.get('players');
+      return cleanPlayers(players);
+    } catch {
+      return cleanPlayers(null);
+    }
+  }
+
+  // ---------- quick signals (drawn on both screens) ----------
+  const SIGNAL_TEXTS = ['Wait!', 'Go!', 'Help!', 'Nice!'];
+  const SIGNAL_COLORS = { fireboy: '#ff6a3d', watergirl: '#3db7ff' };
+
+  function injectSignalStyles(doc) {
+    if (doc.getElementById('fbwg-signal-styles')) return;
+    const st = doc.createElement('style');
+    st.id = 'fbwg-signal-styles';
+    st.textContent = `
+      .fbwg-bubble { position: absolute; top: 6%; left: 50%; transform: translate(-50%, 0);
+        font: 800 clamp(16px, 4vw, 34px)/1 system-ui, -apple-system, "Segoe UI", sans-serif; color: #fff;
+        padding: .35em .8em; border-radius: 999px; box-shadow: 0 4px 16px rgba(0,0,0,.45);
+        animation: fbwg-pop 2.6s ease forwards; white-space: nowrap; }
+      .fbwg-mark { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%;
+        border: 4px solid currentColor; box-shadow: 0 0 0 3px rgba(0,0,0,.4); animation: fbwg-ping 3s ease-out forwards; }
+      .fbwg-mark::after { content: ''; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px;
+        margin: -5px 0 0 -5px; border-radius: 50%; background: currentColor; }
+      @keyframes fbwg-pop { 0% { opacity: 0; transform: translate(-50%, -10px) scale(.8); }
+        10% { opacity: 1; transform: translate(-50%, 0) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+      @keyframes fbwg-ping { 0% { transform: scale(.4); opacity: 1; } 20% { transform: scale(1); }
+        40% { transform: scale(.8); } 60% { transform: scale(1); } 100% { transform: scale(1); opacity: 0; } }
+      @media (prefers-reduced-motion: reduce) { .fbwg-bubble, .fbwg-mark { animation-duration: 2.6s; animation-name: none; } }`;
+    (doc.head || doc.documentElement).appendChild(st);
+  }
+
+  // Draw one signal inside `layer` (a box covering the game picture).
+  function renderSignal(layer, sig, from) {
+    const color = SIGNAL_COLORS[from] || '#fff';
+    const el = layer.ownerDocument.createElement('div');
+    if (sig && sig.kind === 'msg' && SIGNAL_TEXTS[sig.i]) {
+      el.className = 'fbwg-bubble';
+      el.textContent = SIGNAL_TEXTS[sig.i];
+      el.style.background = color;
+    } else if (sig && sig.kind === 'mark' && Number.isFinite(+sig.x) && Number.isFinite(+sig.y)) {
+      el.className = 'fbwg-mark';
+      el.style.color = color;
+      el.style.left = Math.min(1, Math.max(0, +sig.x)) * 100 + '%';
+      el.style.top = Math.min(1, Math.max(0, +sig.y)) * 100 + '%';
+    } else {
+      return;
+    }
+    layer.appendChild(el);
+    setTimeout(() => el.remove(), 3100);
+  }
+
   // Invite links open this page; the extension's content script there opens the game.
   const JOIN_PAGE = 'https://xyz3147.github.io/fbwg-online/join/';
   function inviteLink(code) {
@@ -300,5 +380,7 @@ var FBWG = (() => {
     isSaveKey, saveLabel, SAVE_HISTORY_MAX, DEFAULT_SETTINGS, cleanSettings, loadSettings, peerOptions,
     LAYOUT_KEYS, LAYOUT_NAMES, layoutFor, DEFAULT_CONTROLS, ACTION_NAMES, cleanControls, loadControls,
     readPad, readGamepads, bindingLabel, cleanBinding, JOIN_PAGE, inviteLink,
+    DEFAULT_PLAYERS, padKey, padName, cleanPlayers, loadPlayers,
+    SIGNAL_TEXTS, SIGNAL_COLORS, injectSignalStyles, renderSignal,
   };
 })();

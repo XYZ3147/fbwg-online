@@ -185,6 +185,10 @@
     chrome.tabs.create({ url: RELEASES_URL + '/download/fbwg-online.zip' });
   });
   $('reloadExtBtn').addEventListener('click', () => chrome.runtime.reload());
+  $('playersBtn').addEventListener('click', () => {
+    chrome.windows.create({ url: chrome.runtime.getURL('players.html'), type: 'popup', width: 860, height: 720, focused: true });
+    window.close();
+  });
   $('savesBtn').addEventListener('click', () => {
     chrome.tabs.create({ url: chrome.runtime.getURL('saves.html') });
     window.close();

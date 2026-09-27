@@ -17,6 +17,7 @@
     </div>
     <div class="actions" id="actions" hidden>
       <button type="button" id="soundBtn" title="Sound (M)">Sound on</button>
+      <button type="button" id="qualityBtn" title="Picture quality">Smooth</button>
       <button type="button" id="fitBtn" title="Picture size">Fit</button>
       <button type="button" id="controlsBtn" title="Keys and controller">Controls</button>
       <button type="button" id="fullBtn" title="Fullscreen (F)">Fullscreen</button>
@@ -38,6 +39,7 @@
 
     <div class="screen" id="screen" hidden>
       <video id="video" autoplay playsinline></video>
+      <div class="signal-layer" id="signalLayer"></div>
       <div class="overlay" id="overlay" role="status"></div>
       <button type="button" class="unmute" id="unmuteBtn" hidden>Click to turn on sound</button>
     </div>

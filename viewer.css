@@ -107,6 +107,7 @@ video {
 .screen:fullscreen video { border-radius: 0; }
 .screen.fit-stretch video { object-fit: fill; }
 .screen.fit-zoom video { object-fit: cover; }
+.signal-layer { position: absolute; pointer-events: none; overflow: hidden; }
 
 .overlay {
   position: absolute; inset: 0; display: grid; place-items: center; text-align: center;

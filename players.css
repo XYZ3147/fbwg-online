@@ -1,0 +1,51 @@
+body { overflow: auto; }
+
+.players-page {
+  display: block;
+  place-items: normal; /* viewer.css centers main's children */
+  width: min(820px, 100%);
+  margin: 0 auto;
+  padding: 24px 16px 40px;
+}
+.players-page h1 { font-size: 24px; margin: 0 0 6px; text-align: center; }
+.lead { color: var(--muted); text-align: center; margin: 0 auto 20px; max-width: 60ch; }
+
+.sides, .lane { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.side { text-align: center; padding: 10px; border-radius: 12px 12px 0 0; }
+.side h2 { margin: 0; font-size: 16px; }
+.fire-side { background: color-mix(in srgb, var(--fire) 18%, transparent); color: var(--fire); }
+.water-side { background: color-mix(in srgb, var(--water) 18%, transparent); color: var(--water); }
+.middle { background: #1a2130; color: var(--muted); }
+
+.lanes { display: grid; gap: 10px; margin-top: 10px; }
+.lane { align-items: center; min-height: 64px; }
+
+.device {
+  display: flex; align-items: center; gap: 8px; justify-content: space-between;
+  background: var(--panel); border: 2px solid var(--line); border-radius: 12px; padding: 8px 10px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.device.col-fireboy { grid-column: 1; border-color: var(--fire); }
+.device.col-none, .device.col-both { grid-column: 2; }
+.device.col-watergirl { grid-column: 3; border-color: var(--water); }
+.device.pulse { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 60%, transparent); }
+
+.device .who { min-width: 0; text-align: center; flex: 1; }
+.device .name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.device .what { color: var(--muted); font-size: 12px; }
+.device button { padding: 4px 10px; font-size: 16px; line-height: 1; }
+.device button:disabled { visibility: hidden; }
+
+.summary { margin-top: 28px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.summary h2 { font-size: 15px; margin: 0 0 8px; }
+.summary ul { margin: 0 0 8px; padding-left: 20px; }
+.summary li { margin-bottom: 4px; }
+.summary .fire { color: var(--fire); font-weight: 700; }
+.summary .water { color: var(--water); font-weight: 700; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+button.link { background: none; border: 0; padding: 0; color: var(--water); text-decoration: underline; font-weight: 600; cursor: pointer; }
+
+@media (max-width: 560px) {
+  .device .what { display: none; }
+}

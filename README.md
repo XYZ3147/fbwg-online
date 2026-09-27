@@ -37,8 +37,16 @@ picture doesn't freeze.
    the picture between Fit (whole picture), Stretch (fills the window, a bit wider) and Zoom (fills it, edges cut off).
 
 If the connection drops, the friend's window reconnects by itself (for up to a minute) and
-drops straight back into the game. When the host clicks **Stop hosting**, the friend is told the
-game has ended instead.
+drops straight back into the game. If the host's game tab reloads or crashes, it resumes hosting
+with the **same room code**, so the friend gets back in the same way. When the host clicks
+**Stop hosting**, the friend is told the game has ended instead.
+
+**Signals:** press **1–4** to show *Wait!*, *Go!*, *Help!* or *Nice!* on both screens. To point at a
+spot, the friend right-clicks the picture and the host Alt+clicks the game (the game doesn't see
+that click). Signals are coloured by character.
+
+**Picture quality:** the friend's **Smooth / Sharp** button. Smooth (default) sends up to 960 px
+wide for the fewest hiccups; Sharp sends up to 1280 px at a higher bitrate, for fast connections.
 
 ## Controls
 
@@ -52,6 +60,22 @@ and change right away, even mid-game.
   A / ✕ or D-pad ↑ to jump. To change a button, click **Add** next to an action and press the button
   or push the stick you want; **×** removes one. The matching action lights up while you press, so
   you can test it. **Stick sensitivity** sets how far the stick must be pushed.
+
+## Two players on one computer
+
+Open **Choose sides** from the popup (or the Controls page). It works like a sports game's side
+select: Fireboy on the left, Watergirl on the right, "not playing" in the middle. Push a
+controller's stick or D-pad left or right to move its card; the keyboard card has arrow buttons.
+The screen lists every connected controller and which character it plays. Changes apply to an
+open game right away.
+
+- Two controllers: put one on each side.
+- Keyboard + controller: put the keyboard on one character and the controller on the other. The
+  keyboard then uses your chosen layout (Controls page) for its character and ignores the other keys.
+- Keyboard in the middle ("Both") keeps the game's own keys: arrows for Fireboy, WASD for Watergirl.
+
+When you host online, controllers on your character's side play your character (if none are, the
+first controller does); the friend's character is always theirs.
 
 ## Saved progress
 
@@ -134,6 +158,7 @@ A full online session has only been played on Forest Temple so far.
 | `save-guard.js` | Backs up each game's save to extension storage and restores it if missing. |
 | `saves.html/.js/.css` | Manage saves: export, import, older versions, delete. |
 | `controls.html/.js/.css` | Keyboard layout and controller buttons. |
+| `players.html/.js/.css` | Side selection for playing on one computer. |
 | `invite.js` | Runs on the invite page and asks the extension to open the game. |
 | `docs/join/` | The invite page, served by GitHub Pages (not part of the extension zip). |
 | `Update.cmd`, `update.ps1` | One-click updater: downloads the latest release and replaces the files. |

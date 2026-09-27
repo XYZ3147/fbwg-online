@@ -38,8 +38,18 @@
       applyHostInput();
     }
   });
-  let padTimer = null;
-  let padHeld = {}; // what the host's controller is holding, as host-character keys
+  // Local side selection (Players screen): which character each device plays.
+  let players = FBWG.cleanPlayers(null);
+  FBWG.loadPlayers().then((p) => { players = p; applyHostInput(); });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.players) {
+      players = FBWG.cleanPlayers(changes.players.newValue);
+      applyHostInput();
+    }
+  });
+  const padHeld = { fireboy: {}, watergirl: {} }; // keys controllers are holding, per character
+  let quality = 'smooth'; // the friend's Smooth / Sharp choice
+  const HOSTING_KEY = 'fbwg-hosting'; // this tab's room, so a reload resumes it
 
   // ---------- talking to the page-world hook ----------
   function sendKey(type, k) {
@@ -55,46 +65,75 @@
 
   const hostRole = () => otherRole(state.guestRole);
 
-  // While a friend is connected: the host's chosen keys drive the host's
-  // character, other movement keys are ignored, and a controller works too.
+  // Which character the keyboard drives here: a character, or 'both' (the
+  // game's own keys: arrows for Fireboy, WASD for Watergirl).
+  function keyboardRole() {
+    if (state.status === 'connected') return hostRole(); // online: only the host's character
+    return players.keyboard; // local play: from the Players screen
+  }
+
+  // Tell the page hook how to treat real key presses.
   function applyHostInput() {
-    const active = state.status === 'connected';
+    const role = keyboardRole();
     const map = {};
     const block = [];
-    if (active) {
-      const physical = LAYOUT_KEYS[layoutFor(hostRole(), controls.keyboard)];
-      const target = ROLE_KEYS[hostRole()];
+    if (role !== 'both') {
+      const physical = LAYOUT_KEYS[layoutFor(role, controls.keyboard)];
+      const target = ROLE_KEYS[role];
       for (const d of DIRECTIONS) map[physical[d].keyCode] = target[d];
       for (const set of Object.values(LAYOUT_KEYS)) {
         for (const d of DIRECTIONS) if (!(set[d].keyCode in map)) block.push(set[d].keyCode);
       }
     }
     document.dispatchEvent(new CustomEvent('fbwg-remap', { detail: JSON.stringify({ map, block }) }));
-
-    const wantPad = active && controls.gamepad.enabled;
-    if (wantPad && !padTimer) padTimer = setInterval(pollPad, 16);
-    if (!wantPad && padTimer) {
-      clearInterval(padTimer);
-      padTimer = null;
-      setPad({});
-    }
+    pollPads();
   }
 
-  function setPad(next) {
-    const keys = ROLE_KEYS[hostRole()];
+  function setPadRole(role, next) {
+    const keys = ROLE_KEYS[role];
+    const heldNow = padHeld[role];
     for (const dir of DIRECTIONS) {
       const want = !!next[dir];
-      if (want !== !!padHeld[dir]) {
+      if (want !== !!heldNow[dir]) {
         sendKey(want ? 'keydown' : 'keyup', keys[dir]);
-        padHeld[dir] = want;
+        heldNow[dir] = want;
       }
     }
   }
 
-  function pollPad() {
-    if (document.hidden) return; // controllers can't be read from a hidden tab
-    setPad(FBWG.readGamepads(controls.gamepad));
+  // Which character each connected controller drives right now.
+  function padRoles(pads) {
+    const out = new Map();
+    const online = state.status === 'connected';
+    for (const p of pads) {
+      const side = players.pads[FBWG.padKey(p)] || 'none';
+      if (online) {
+        if (side === hostRole()) out.set(p, hostRole());
+      } else if (side === 'fireboy' || side === 'watergirl') {
+        out.set(p, side);
+      }
+    }
+    // Online with no controller put on the host's side: the first one plays the host.
+    if (online && !out.size && pads.length) out.set(pads[0], hostRole());
+    return out;
   }
+
+  function pollPads() {
+    let pads = [];
+    if (controls.gamepad.enabled && !document.hidden && navigator.getGamepads) {
+      pads = [...navigator.getGamepads()].filter((p) => p && p.connected);
+    }
+    const want = { fireboy: {}, watergirl: {} };
+    for (const [pad, role] of padRoles(pads)) {
+      const a = FBWG.readPad(pad, controls.gamepad);
+      for (const d of DIRECTIONS) if (a[d]) want[role][d] = true;
+    }
+    // The friend's character is theirs while they're connected.
+    if (state.status === 'connected') want[state.guestRole] = {};
+    setPadRole('fireboy', want.fireboy);
+    setPadRole('watergirl', want.watergirl);
+  }
+  setInterval(pollPads, 16);
 
   function setHeld(next) {
     const keys = ROLE_KEYS[state.guestRole];
@@ -149,10 +188,15 @@
       if (!sender.track || sender.track.kind !== 'video') continue;
       const params = sender.getParameters();
       if (!params.encodings || !params.encodings.length) params.encodings = [{}];
-      params.encodings[0].maxBitrate = settings.maxBitrate;
+      // Sharp (the friend's choice): larger picture and more bits, for fast connections.
+      // Capped at 1280 px: bigger costs frames (tested: 1800 px fell to ~10 fps) and
+      // adds little, since the games themselves are 640 to 1024 px.
+      const sharp = quality === 'sharp';
+      params.encodings[0].maxBitrate = sharp ? Math.max(settings.maxBitrate, 6000000) : settings.maxBitrate;
       params.encodings[0].maxFramerate = settings.maxFramerate;
       const width = sender.track.getSettings().width || 0;
-      params.encodings[0].scaleResolutionDownBy = Math.max(1, width / settings.maxWidth);
+      const maxWidth = sharp ? Math.max(settings.maxWidth, 1280) : settings.maxWidth;
+      params.encodings[0].scaleResolutionDownBy = Math.max(1, width / maxWidth);
       params.degradationPreference = 'maintain-framerate';
       sender.setParameters(params).catch(() => {});
     }
@@ -207,6 +251,16 @@
         break;
       case 'mouse':
         replayMouse(msg);
+        break;
+      case 'signal':
+        showSignal(msg, state.guestRole);
+        break;
+      case 'quality':
+        if (msg.mode === 'sharp' || msg.mode === 'smooth') {
+          quality = msg.mode;
+          const pc = call && call.peerConnection;
+          if (pc && pc.connectionState === 'connected') tuneSenders(pc);
+        }
         break;
       case 'ping':
         if (from && from.open) from.send({ t: 'pong', ts: msg.ts });
@@ -305,7 +359,9 @@
     if (peer) return;
     state.status = 'starting';
     state.error = '';
-    state.code = newCode();
+    state.code = opts.code || newCode();
+    const resuming = !!opts.code;
+    try { sessionStorage.setItem(HOSTING_KEY, JSON.stringify({ code: state.code, guestRole: state.guestRole })); } catch {}
     setBackgroundMode(true);
     render();
 
@@ -341,10 +397,16 @@
       reconnectDelay = Math.min(reconnectDelay * 2, 30000);
     });
     peer.on('error', (err) => {
-      if (err.type === 'unavailable-id' && codeRetries++ < 5) {
-        stopHosting();
-        startHosting();
-        return;
+      if (err.type === 'unavailable-id') {
+        // After a reload the server may still hold the old connection for a
+        // few seconds: keep trying the same code, then fall back to a new one.
+        const again = resuming && codeRetries < 10 ? state.code : undefined;
+        if (codeRetries++ < 15) {
+          const role = state.guestRole;
+          teardownHosting();
+          setTimeout(() => startHosting({ guestRole: role, code: again }), again ? 2000 : 0);
+          return;
+        }
       }
       if (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') {
         if (state.status === 'connected') return;
@@ -369,7 +431,13 @@
     }
   }
 
+  // Stop on purpose: forget the room so a reload doesn't bring it back.
   function stopHosting() {
+    try { sessionStorage.removeItem(HOSTING_KEY); } catch {}
+    teardownHosting();
+  }
+
+  function teardownHosting() {
     releaseAll();
     if (conn) { try { conn.close(); } catch {} }
     if (fast) { try { fast.close(); } catch {} }
@@ -393,19 +461,84 @@
     if (role !== 'fireboy' && role !== 'watergirl') return;
     if (role === state.guestRole) return;
     releaseAll();
-    setPad({});
+    setPadRole('fireboy', {});
+    setPadRole('watergirl', {});
     state.guestRole = role;
     applyHostInput();
     if (conn && conn.open) conn.send({ t: 'role', role });
     render();
   }
 
-  window.addEventListener('pagehide', stopHosting);
+  // Leaving or reloading the page keeps the room remembered for this tab.
+  window.addEventListener('pagehide', teardownHosting);
+
+  // After a reload (or a crashed tab coming back), host the same room again so
+  // the friend's automatic reconnect finds it.
+  (function resumeHosting() {
+    let saved = null;
+    try { saved = JSON.parse(sessionStorage.getItem(HOSTING_KEY) || 'null'); } catch {}
+    if (!saved || !saved.code) return;
+    let tries = 0;
+    const wait = setInterval(() => {
+      if (findCanvas() || ++tries > 120) {
+        clearInterval(wait);
+        if (findCanvas() && !peer) startHosting({ guestRole: saved.guestRole, code: FBWG.normalizeCode(saved.code) });
+      }
+    }, 500);
+  })();
   // The stream's size follows the canvas, so re-apply the width cap on resize.
   window.addEventListener('resize', () => {
     const pc = call && call.peerConnection;
     if (pc && pc.connectionState === 'connected') setTimeout(() => tuneSenders(pc), 250);
   });
+
+  // ---------- quick signals ----------
+  // Messages (keys 1–4) and "look here" markers (Alt+click), shown on both screens.
+  function sendSignal(sig) {
+    if (conn && conn.open) conn.send({ t: 'signal', ...sig });
+    showSignal(sig, hostRole());
+  }
+
+  let signalLayer = null;
+  function layer() {
+    const c = findCanvas();
+    if (!c) return null;
+    if (!signalLayer) {
+      signalLayer = document.createElement('div');
+      signalLayer.style.cssText = 'position:fixed;z-index:2147483646;pointer-events:none;overflow:hidden';
+      (document.body || document.documentElement).appendChild(signalLayer);
+      FBWG.injectSignalStyles(document);
+    }
+    const r = c.getBoundingClientRect();
+    Object.assign(signalLayer.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+    return signalLayer;
+  }
+
+  function showSignal(sig, from) {
+    const l = layer();
+    if (l) FBWG.renderSignal(l, sig, from);
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (state.status !== 'connected' || e.repeat || !e.isTrusted) return;
+    const i = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(e.code);
+    if (i >= 0) sendSignal({ kind: 'msg', i });
+  }, true);
+
+  // Alt+click on the game points somewhere; the game itself doesn't see that click.
+  const pointClick = (e) => {
+    if (state.status !== 'connected' || !e.altKey || !e.isTrusted) return;
+    const c = findCanvas();
+    if (!c) return;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    if (e.type !== 'mousedown') return;
+    const r = c.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;
+    const y = (e.clientY - r.top) / r.height;
+    if (x >= 0 && x <= 1 && y >= 0 && y <= 1) sendSignal({ kind: 'mark', x, y });
+  };
+  for (const t of ['mousedown', 'mouseup', 'click']) window.addEventListener(t, pointClick, true);
 
   // ---------- on-page status pill ----------
   let pill = null;
@@ -432,6 +565,7 @@
     else if (state.status === 'connected') {
       text = `Friend connected as ${ROLE_NAMES[state.guestRole]}`;
       if (state.rtt != null) text += ` · ${Math.round(state.rtt)} ms`;
+      text += ' · 1–4 to signal, Alt+click to point';
     } else text = `Online play error: ${state.error}`;
     pill.innerHTML = '';
     const d = document.createElement('span');
