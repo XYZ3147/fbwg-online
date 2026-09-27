@@ -40,6 +40,98 @@ var FBWG = (() => {
     return role === 'fireboy' ? 'watergirl' : 'fireboy';
   }
 
+  // ---------- controls ----------
+  // Which physical keys a player moves with. "auto" = the character's usual
+  // keys (Fireboy arrows, Watergirl WASD); the player can pick either set for
+  // either character.
+  const LAYOUT_KEYS = { arrows: ROLE_KEYS.fireboy, wasd: ROLE_KEYS.watergirl };
+  const LAYOUT_NAMES = { auto: 'Automatic', arrows: 'Arrow keys', wasd: 'WASD' };
+  function layoutFor(role, keyboard) {
+    if (keyboard === 'arrows' || keyboard === 'wasd') return keyboard;
+    return role === 'fireboy' ? 'arrows' : 'wasd';
+  }
+
+  // Controller bindings: a button, or a stick axis pushed past the dead zone.
+  const DEFAULT_BINDINGS = {
+    up: [{ type: 'button', index: 0 }, { type: 'button', index: 12 }],
+    left: [{ type: 'button', index: 14 }, { type: 'axis', index: 0, dir: -1 }],
+    right: [{ type: 'button', index: 15 }, { type: 'axis', index: 0, dir: 1 }],
+    down: [{ type: 'button', index: 13 }, { type: 'axis', index: 1, dir: 1 }],
+  };
+  const DEFAULT_CONTROLS = { keyboard: 'auto', gamepad: { enabled: true, deadzone: 0.5, bindings: DEFAULT_BINDINGS } };
+  const ACTION_NAMES = { up: 'Jump', left: 'Move left', right: 'Move right', down: 'Down' };
+
+  function cleanBinding(b) {
+    if (!b || typeof b !== 'object' || !Number.isInteger(b.index) || b.index < 0 || b.index > 31) return null;
+    if (b.type === 'button') return { type: 'button', index: b.index };
+    if (b.type === 'axis' && (b.dir === 1 || b.dir === -1)) return { type: 'axis', index: b.index, dir: b.dir };
+    return null;
+  }
+
+  function cleanControls(raw) {
+    const c = JSON.parse(JSON.stringify(DEFAULT_CONTROLS));
+    if (!raw || typeof raw !== 'object') return c;
+    if (['auto', 'arrows', 'wasd'].includes(raw.keyboard)) c.keyboard = raw.keyboard;
+    const g = raw.gamepad;
+    if (g && typeof g === 'object') {
+      if (typeof g.enabled === 'boolean') c.gamepad.enabled = g.enabled;
+      if (typeof g.deadzone === 'number' && g.deadzone >= 0.1 && g.deadzone <= 0.9) c.gamepad.deadzone = g.deadzone;
+      if (g.bindings && typeof g.bindings === 'object') {
+        for (const dir of DIRECTIONS) {
+          if (Array.isArray(g.bindings[dir])) c.gamepad.bindings[dir] = g.bindings[dir].map(cleanBinding).filter(Boolean).slice(0, 4);
+        }
+      }
+    }
+    return c;
+  }
+
+  async function loadControls() {
+    try {
+      const { controls } = await chrome.storage.local.get('controls');
+      return cleanControls(controls);
+    } catch {
+      return cleanControls(null);
+    }
+  }
+
+  // Which actions a controller is pressing right now.
+  function readPad(pad, gamepad) {
+    const out = {};
+    if (!pad) return out;
+    for (const dir of DIRECTIONS) {
+      out[dir] = (gamepad.bindings[dir] || []).some((b) => {
+        if (b.type === 'button') return !!(pad.buttons[b.index] && pad.buttons[b.index].pressed);
+        const v = pad.axes[b.index];
+        return typeof v === 'number' && v * b.dir > gamepad.deadzone;
+      });
+    }
+    return out;
+  }
+
+  // First connected controller's actions, or {} when none (or disabled).
+  function readGamepads(gamepad) {
+    if (!gamepad.enabled || !navigator.getGamepads) return {};
+    for (const pad of navigator.getGamepads()) if (pad && pad.connected) return readPad(pad, gamepad);
+    return {};
+  }
+
+  const BUTTON_NAMES = ['A / ✕', 'B / ○', 'X / □', 'Y / △', 'LB / L1', 'RB / R1', 'LT / L2', 'RT / R2',
+    'Back / Share', 'Start / Options', 'Left stick press', 'Right stick press',
+    'D-pad ↑', 'D-pad ↓', 'D-pad ←', 'D-pad →', 'Home'];
+  function bindingLabel(b) {
+    if (b.type === 'button') return BUTTON_NAMES[b.index] || `Button ${b.index}`;
+    const stick = b.index < 2 ? 'Left stick' : b.index < 4 ? 'Right stick' : `Axis ${b.index}`;
+    const horizontal = b.index % 2 === 0;
+    const arrow = horizontal ? (b.dir < 0 ? '←' : '→') : (b.dir < 0 ? '↑' : '↓');
+    return `${stick} ${arrow}`;
+  }
+
+  // Invite links open this page; the extension's content script there opens the game.
+  const JOIN_PAGE = 'https://xyz3147.github.io/fbwg-online/join/';
+  function inviteLink(code) {
+    return JOIN_PAGE + '#' + normalizeCode(code);
+  }
+
   // Where new versions and new games are announced. The file holds data only
   // (version, notes, game addresses); Chrome does not allow extensions to
   // download code, so new code arrives as a new zip the user installs.
@@ -99,9 +191,10 @@ var FBWG = (() => {
   }
 
   // Which site storage entries are game saves (the rest is ads and trackers).
-  // Temple games (Flash engine) save as "/FB<Game>" in "AWAY…" format;
-  // Elements saves under "fb-<game>…".
-  const SAVE_KEY_PREFIXES = ['/FB', 'fb-'];
+  // Temple games (Flash engine) save as "/FB<Name>" in "AWAY…" format
+  // (/FBForestTemple, /FBCookie, /FBAWG3, /FBAWG4); Elements and Friends save
+  // under "fb-<game>:progress", and Friends keeps owned items in "localStore".
+  const SAVE_KEY_PREFIXES = ['/FB', 'fb-', 'localStore'];
   const SAVE_HISTORY_MAX = 10;
   function isSaveKey(key, value, extraPrefixes = []) {
     if (typeof key !== 'string') return false;
@@ -118,7 +211,15 @@ var FBWG = (() => {
     maxWidth: 960, // stream is scaled down to at most this width (the games are ~640 px)
     guestTimeoutMs: 8000, // host frees the slot after this much silence
     hostTimeoutMs: 10000, // friend gives up after this much silence
-    iceServers: null, // null = PeerJS's own connection servers
+    // Address servers (STUN) help the two computers find a direct route; the
+    // relay (TURN) carries the game when no direct route exists. The first
+    // and last two are PeerJS's own defaults.
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] },
+      { urls: 'stun:stun.cloudflare.com:3478' },
+      { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
+    ],
     savePrefixes: [], // extra save-entry name prefixes to back up
   };
 
@@ -168,10 +269,19 @@ var FBWG = (() => {
     }
   }
 
-  // "/FBForestTemple" -> "Forest Temple", "fb-elements:progress" -> "elements"
+  // Readable names for the Manage saves page; unknown keys show as-is.
+  const SAVE_LABELS = {
+    '/FBForestTemple': 'Forest Temple',
+    '/FBAWG3': 'Ice Temple',
+    '/FBAWG4': 'Crystal Temple',
+    '/FBCookie': 'Temple games (shared)',
+    'localStore': 'and Friends: owned items',
+  };
   function saveLabel(key) {
-    const k = key.replace(/^\/FB|^fb-/, '').replace(/[:_].*$/, '');
-    return k.replace(/([a-z])([A-Z])/g, '$1 $2') || key;
+    if (SAVE_LABELS[key]) return SAVE_LABELS[key];
+    const m = key.match(/^fb-([^:]+):(.+)$/);
+    if (m) return `${m[1][0].toUpperCase()}${m[1].slice(1)}: ${m[2]}`;
+    return key.replace(/^\//, '');
   }
 
   function compareVersions(a, b) {
@@ -188,5 +298,7 @@ var FBWG = (() => {
     ROLE_KEYS, ROLE_NAMES, DIRECTIONS, CODE_LENGTH, newCode, normalizeCode, peerIdFor, otherRole,
     UPDATE_URL, RELEASES_URL, SITE, DEFAULT_GAMES, cleanGames, frameMatches, tabMatches, compareVersions,
     isSaveKey, saveLabel, SAVE_HISTORY_MAX, DEFAULT_SETTINGS, cleanSettings, loadSettings, peerOptions,
+    LAYOUT_KEYS, LAYOUT_NAMES, layoutFor, DEFAULT_CONTROLS, ACTION_NAMES, cleanControls, loadControls,
+    readPad, readGamepads, bindingLabel, cleanBinding, JOIN_PAGE, inviteLink,
   };
 })();

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Controls · Fireboy &amp; Watergirl Online</title>
+  <link rel="icon" href="icons/icon32.png">
+  <link rel="stylesheet" href="viewer.css">
+  <link rel="stylesheet" href="saves.css">
+  <link rel="stylesheet" href="controls.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="brand"><span class="fire">Fireboy</span> <span class="amp">&amp;</span> <span class="water">Watergirl</span> <span class="tag">Online</span></div>
+  </header>
+
+  <main class="page">
+    <section class="card wide">
+      <h1>Controls</h1>
+      <p class="muted">These apply whether you host or join, and whichever character you play.
+        Changes take effect right away, even mid-game.</p>
+
+      <h2>Keyboard</h2>
+      <fieldset class="choices" id="keyboard">
+        <legend class="sr">Movement keys</legend>
+        <label><input type="radio" name="keyboard" value="auto"> <span><strong>Automatic</strong>: Fireboy on arrow keys, Watergirl on WASD</span></label>
+        <label><input type="radio" name="keyboard" value="arrows"> <span><strong>Arrow keys</strong> for either character</span></label>
+        <label><input type="radio" name="keyboard" value="wasd"> <span><strong>WASD</strong> for either character</span></label>
+      </fieldset>
+      <p class="muted small">When you host, the other set of keys is ignored so you can't move your friend's character.</p>
+    </section>
+
+    <section class="card wide">
+      <h2>Controller</h2>
+      <label class="check"><input type="checkbox" id="padEnabled"> <span>Use a controller</span></label>
+      <p id="padStatus" class="muted" role="status">No controller found. Connect one and press any button on it.</p>
+
+      <table class="bindings">
+        <thead><tr><th scope="col">Action</th><th scope="col">Buttons</th><th scope="col"><span class="sr">Change</span></th></tr></thead>
+        <tbody id="bindingRows"></tbody>
+      </table>
+
+      <label class="row slider">
+        <span>Stick sensitivity</span>
+        <input type="range" id="deadzone" min="0.2" max="0.8" step="0.05">
+        <output id="deadzoneOut"></output>
+      </label>
+      <p class="muted small">Lower reacts to a small push of the stick; higher needs a bigger push.</p>
+
+      <div class="buttons">
+        <button type="button" id="resetBtn">Reset controller buttons</button>
+      </div>
+      <p id="msg" class="msg" role="status"></p>
+    </section>
+
+    <p class="credit">Made by XYZ</p>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="controls.js"></script>
+</body>
+</html>

@@ -5,14 +5,13 @@
   if (window.__fbwgHost) return;
   window.__fbwgHost = true;
 
-  const { ROLE_KEYS, ROLE_NAMES, DIRECTIONS, newCode, peerIdFor, peerOptions } = FBWG;
+  const { ROLE_KEYS, ROLE_NAMES, DIRECTIONS, newCode, peerIdFor, peerOptions, otherRole, layoutFor, LAYOUT_KEYS } = FBWG;
 
   const state = {
     status: 'idle', // idle | starting | waiting | connected | error
     error: '',
     code: '',
     guestRole: 'watergirl',
-    lockGuestKeys: true,
     rtt: null,
   };
 
@@ -30,6 +29,17 @@
   // Tunable from the update file without a new version.
   let settings = FBWG.cleanSettings(null);
   FBWG.loadSettings().then((s) => { settings = s; });
+  // The host's own key layout and controller setup (Controls page).
+  let controls = FBWG.cleanControls(null);
+  FBWG.loadControls().then((c) => { controls = c; applyHostInput(); });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.controls) {
+      controls = FBWG.cleanControls(changes.controls.newValue);
+      applyHostInput();
+    }
+  });
+  let padTimer = null;
+  let padHeld = {}; // what the host's controller is holding, as host-character keys
 
   // ---------- talking to the page-world hook ----------
   function sendKey(type, k) {
@@ -43,11 +53,47 @@
     document.dispatchEvent(new CustomEvent('fbwg-background', { detail: on ? 'on' : 'off' }));
   }
 
-  function applyLock() {
-    const codes = state.status === 'connected' && state.lockGuestKeys
-      ? DIRECTIONS.map((d) => ROLE_KEYS[state.guestRole][d].keyCode)
-      : [];
-    document.dispatchEvent(new CustomEvent('fbwg-lock', { detail: JSON.stringify(codes) }));
+  const hostRole = () => otherRole(state.guestRole);
+
+  // While a friend is connected: the host's chosen keys drive the host's
+  // character, other movement keys are ignored, and a controller works too.
+  function applyHostInput() {
+    const active = state.status === 'connected';
+    const map = {};
+    const block = [];
+    if (active) {
+      const physical = LAYOUT_KEYS[layoutFor(hostRole(), controls.keyboard)];
+      const target = ROLE_KEYS[hostRole()];
+      for (const d of DIRECTIONS) map[physical[d].keyCode] = target[d];
+      for (const set of Object.values(LAYOUT_KEYS)) {
+        for (const d of DIRECTIONS) if (!(set[d].keyCode in map)) block.push(set[d].keyCode);
+      }
+    }
+    document.dispatchEvent(new CustomEvent('fbwg-remap', { detail: JSON.stringify({ map, block }) }));
+
+    const wantPad = active && controls.gamepad.enabled;
+    if (wantPad && !padTimer) padTimer = setInterval(pollPad, 16);
+    if (!wantPad && padTimer) {
+      clearInterval(padTimer);
+      padTimer = null;
+      setPad({});
+    }
+  }
+
+  function setPad(next) {
+    const keys = ROLE_KEYS[hostRole()];
+    for (const dir of DIRECTIONS) {
+      const want = !!next[dir];
+      if (want !== !!padHeld[dir]) {
+        sendKey(want ? 'keydown' : 'keyup', keys[dir]);
+        padHeld[dir] = want;
+      }
+    }
+  }
+
+  function pollPad() {
+    if (document.hidden) return; // controllers can't be read from a hidden tab
+    setPad(FBWG.readGamepads(controls.gamepad));
   }
 
   function setHeld(next) {
@@ -208,7 +254,7 @@
       } catch (e) {
         c.send({ t: 'error', message: e.message });
       }
-      applyLock();
+      applyHostInput();
       render();
     });
     c.on('data', (m) => onGuestData(m, c));
@@ -224,7 +270,7 @@
       stopStream();
       if (state.status === 'connected') state.status = 'waiting';
       state.rtt = null;
-      applyLock();
+      applyHostInput();
       render();
     };
     c.on('close', drop);
@@ -256,7 +302,6 @@
 
   function startHosting(opts = {}) {
     if (opts.guestRole === 'fireboy' || opts.guestRole === 'watergirl') state.guestRole = opts.guestRole;
-    if (typeof opts.lockGuestKeys === 'boolean') state.lockGuestKeys = opts.lockGuestKeys;
     if (peer) return;
     state.status = 'starting';
     state.error = '';
@@ -275,7 +320,11 @@
         acceptFast(c);
         return;
       }
-      if (conn && conn.open) {
+      const returning = c.metadata && c.metadata.guestId && conn && conn.metadata
+        && conn.metadata.guestId === c.metadata.guestId;
+      if (returning) {
+        conn.__fbwgDrop();
+      } else if (conn && conn.open) {
         c.on('open', () => c.send({ t: 'full' }));
         setTimeout(() => { try { c.close(); } catch {} }, 3000);
         return;
@@ -336,7 +385,7 @@
     state.code = '';
     state.error = '';
     state.rtt = null;
-    applyLock();
+    applyHostInput();
     render();
   }
 
@@ -344,15 +393,10 @@
     if (role !== 'fireboy' && role !== 'watergirl') return;
     if (role === state.guestRole) return;
     releaseAll();
+    setPad({});
     state.guestRole = role;
-    applyLock();
+    applyHostInput();
     if (conn && conn.open) conn.send({ t: 'role', role });
-    render();
-  }
-
-  function setLock(on) {
-    state.lockGuestKeys = !!on;
-    applyLock();
     render();
   }
 
@@ -398,7 +442,8 @@
   }
 
   function publicState() {
-    return { ...state, hasCanvas: !!findCanvas() };
+    const layout = FBWG.layoutFor(hostRole(), controls.keyboard);
+    return { ...state, hasCanvas: !!findCanvas(), hostRole: hostRole(), hostKeys: FBWG.LAYOUT_NAMES[layout] };
   }
 
   // ---------- popup messages ----------
@@ -407,9 +452,15 @@
     switch (msg.type) {
       case 'status': break;
       case 'start': startHosting(msg); break;
-      case 'stop': stopHosting(); break;
+      case 'stop':
+        if (conn && conn.open) {
+          try { conn.send({ t: 'bye' }); } catch {}
+          setTimeout(() => { stopHosting(); reply(publicState()); }, 300);
+          return true;
+        }
+        stopHosting();
+        break;
       case 'role': setGuestRole(msg.role); break;
-      case 'lock': setLock(msg.on); break;
       default: return;
     }
     reply(publicState());

@@ -31,3 +31,9 @@ body { overflow: auto; }
 .danger #deleteBtn { border-color: color-mix(in srgb, var(--bad) 55%, transparent); color: var(--bad); }
 
 .credit { color: var(--muted); font-size: 12px; }
+
+/* viewer.css styles every input like the big room-code box; undo that for checkboxes. */
+.check input[type="checkbox"] {
+  flex: none; width: 18px; height: 18px; padding: 0; margin: 0; border: 0; background: none;
+  letter-spacing: normal; accent-color: var(--water);
+}

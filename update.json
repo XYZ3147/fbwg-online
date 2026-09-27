@@ -1,8 +1,12 @@
 {
-  "version": "1.5.0",
+  "version": "1.6.0",
   "notes": [
-    "Picture size button in the friend window: Fit (whole picture), Stretch (fills the window, a bit wider) or Zoom (fills the window, edges cut off)",
-    "Your choice is remembered, and clicks land in the right place in every mode"
+    "Controls page: play with arrow keys or WASD as either character, and use a controller with buttons you choose",
+    "Automatic reconnect: if the connection drops, the friend gets back into the game by themselves",
+    "Invite links: send a link instead of a code",
+    "Extra connection servers so more connections go direct instead of through a relay",
+    "Picture size button in the friend window: Fit, Stretch or Zoom",
+    "Backups now also cover and Friends owned items"
   ],
   "announcement": "",
   "settings": {
@@ -11,7 +15,28 @@
     "maxWidth": 960,
     "guestTimeoutMs": 8000,
     "hostTimeoutMs": 10000,
-    "iceServers": null,
+    "iceServers": [
+      {
+        "urls": "stun:stun.l.google.com:19302"
+      },
+      {
+        "urls": [
+          "stun:stun1.l.google.com:19302",
+          "stun:stun2.l.google.com:19302"
+        ]
+      },
+      {
+        "urls": "stun:stun.cloudflare.com:3478"
+      },
+      {
+        "urls": [
+          "turn:eu-0.turn.peerjs.com:3478",
+          "turn:us-0.turn.peerjs.com:3478"
+        ],
+        "username": "peerjs",
+        "credential": "peerjsp"
+      }
+    ],
     "savePrefixes": []
   },
   "games": [

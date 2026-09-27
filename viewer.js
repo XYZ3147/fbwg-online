@@ -1,6 +1,6 @@
 // Guest side: shows the host's game stream and sends this player's input back.
 (() => {
-  const { DIRECTIONS, ROLE_NAMES, normalizeCode, peerIdFor, CODE_LENGTH } = FBWG;
+  const { DIRECTIONS, ROLE_NAMES, normalizeCode, peerIdFor, CODE_LENGTH, LAYOUT_KEYS, LAYOUT_NAMES, layoutFor } = FBWG;
   const $ = (id) => document.getElementById(id);
 
   const els = {
@@ -8,15 +8,47 @@
     joinMsg: $('joinMsg'), screen: $('screen'), video: $('video'), overlay: $('overlay'),
     info: $('info'), roleChip: $('roleChip'), hint: $('hint'), stats: $('stats'),
     actions: $('actions'), soundBtn: $('soundBtn'), fitBtn: $('fitBtn'), fullBtn: $('fullBtn'), leaveBtn: $('leaveBtn'),
-    unmuteBtn: $('unmuteBtn'),
+    unmuteBtn: $('unmuteBtn'), controlsBtn: $('controlsBtn'),
   };
 
-  const KEY_TO_DIR = {
-    ArrowUp: 'up', KeyW: 'up',
-    ArrowLeft: 'left', KeyA: 'left',
-    ArrowRight: 'right', KeyD: 'right',
-    ArrowDown: 'down', KeyS: 'down',
-  };
+  // Movement keys by physical key code; which set counts depends on the Controls page.
+  const LAYOUT_CODES = {};
+  for (const [layout, keys] of Object.entries(LAYOUT_KEYS)) {
+    LAYOUT_CODES[layout] = {};
+    for (const d of DIRECTIONS) LAYOUT_CODES[layout][keys[d].code] = d;
+  }
+  const ALL_MOVE_CODES = new Set(Object.values(LAYOUT_CODES).flatMap(Object.keys));
+
+  let controls = FBWG.cleanControls(null);
+  FBWG.loadControls().then((c) => { controls = c; updateHint(); });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.controls) {
+      controls = FBWG.cleanControls(changes.controls.newValue);
+      updateHint();
+      sendKeys();
+    }
+  });
+  let padState = {}; // actions the controller is pressing
+
+  // Before the host says which character we play, accept both key sets.
+  function dirFor(code) {
+    if (!role) return LAYOUT_CODES.arrows[code] || LAYOUT_CODES.wasd[code];
+    return LAYOUT_CODES[layoutFor(role, controls.keyboard)][code];
+  }
+
+  // A stable id for this window, so the host lets us back in after a dropped connection.
+  const guestId = (() => {
+    try {
+      let id = sessionStorage.getItem('fbwg-guest');
+      if (!id) { id = crypto.randomUUID(); sessionStorage.setItem('fbwg-guest', id); }
+      return id;
+    } catch { return crypto.randomUUID(); }
+  })();
+  const RECONNECT_FOR_MS = 60000;
+  let currentCode = '';
+  let reconnect = null; // { until, attempt, timer } while trying to get back in
+  let hostSaidBye = false;
+  let connectTimer = null;
 
   let peer = null;
   let conn = null;
@@ -57,17 +89,28 @@
     els.actions.hidden = false;
   }
 
-  function setOverlay(text, withRetry = false) {
+  function setOverlay(text, withBack = false, withTryAgain = false) {
     els.overlay.textContent = '';
     if (!text) return;
     const wrap = document.createElement('div');
     wrap.textContent = text;
-    if (withRetry) {
+    if (withBack || withTryAgain) wrap.append(document.createElement('br'));
+    if (withTryAgain) {
+      const again = document.createElement('button');
+      again.type = 'button';
+      again.textContent = 'Try again';
+      again.addEventListener('click', () => {
+        reconnect = { until: Date.now() + RECONNECT_FOR_MS, attempt: 0, timer: null };
+        retrySoon(0);
+      });
+      wrap.append(again, ' ');
+    }
+    if (withBack) {
       const b = document.createElement('button');
       b.type = 'button';
       b.textContent = 'Back to join screen';
       b.addEventListener('click', () => leave());
-      wrap.append(document.createElement('br'), b);
+      wrap.append(b);
     }
     els.overlay.append(wrap);
   }
@@ -105,35 +148,63 @@
     els.info.hidden = false;
     els.roleChip.className = 'chip ' + r;
     els.roleChip.textContent = 'You are ' + ROLE_NAMES[r];
-    els.hint.textContent = 'Move with arrow keys or W A D · click the game to use menus';
     document.title = `${ROLE_NAMES[r]} · Fireboy & Watergirl Online`;
+    updateHint();
   }
 
+  function padConnected() {
+    return !!(navigator.getGamepads && [...navigator.getGamepads()].some((p) => p && p.connected));
+  }
+
+  function updateHint() {
+    if (!role) return;
+    const keys = LAYOUT_NAMES[layoutFor(role, controls.keyboard)];
+    const pad = controls.gamepad.enabled && padConnected() ? ' or your controller' : '';
+    els.hint.textContent = `Move with ${keys}${pad} · click the game to use menus`;
+  }
+  window.addEventListener('gamepadconnected', updateHint);
+  window.addEventListener('gamepaddisconnected', updateHint);
+
   // ---------- connection ----------
-  function join(code) {
+  // With rejoin, the game screen stays up and failures retry instead of
+  // going back to the code screen.
+  function join(code, rejoin = false) {
     code = normalizeCode(code);
     if (code.length !== CODE_LENGTH) {
       showJoin(`Room codes are ${CODE_LENGTH} characters.`, true);
       return;
     }
     teardown();
-    history.replaceState(null, '', '?code=' + code);
-    els.joinBtn.disabled = true;
-    els.joinMsg.classList.remove('bad');
-    els.joinMsg.textContent = 'Connecting…';
+    currentCode = code;
+    if (!rejoin) {
+      stopReconnecting();
+      hostSaidBye = false;
+      history.replaceState(null, '', '?code=' + code);
+      els.joinBtn.disabled = true;
+      els.joinMsg.classList.remove('bad');
+      els.joinMsg.textContent = 'Connecting…';
+    }
+    // Give up on this attempt if the connection never opens.
+    connectTimer = setTimeout(() => {
+      if (conn && conn.open) return;
+      if (rejoin) retrySoon();
+      else { teardown(); showJoin('Could not reach the host. Check the code and try again.', true); }
+    }, 12000);
 
     peer = new Peer(FBWG.peerOptions(settings));
     peer.on('open', () => {
-      conn = peer.connect(peerIdFor(code), { reliable: true, serialization: 'json' });
+      conn = peer.connect(peerIdFor(code), { reliable: true, serialization: 'json', metadata: { guestId } });
       conn.on('open', () => {
+        clearTimeout(connectTimer);
+        stopReconnecting();
         showScreen();
         refreshOverlay();
         startTimers();
         openFastChannel(code);
       });
       conn.on('data', onHostData);
-      conn.on('close', () => hostGone('The host ended the game or closed the tab.'));
-      conn.on('error', () => hostGone('The connection to the host was lost.'));
+      conn.on('close', () => connectionLost());
+      conn.on('error', () => connectionLost());
     });
     peer.on('call', (c) => {
       if (mediaCall && mediaCall !== c) mediaCall.close();
@@ -150,6 +221,10 @@
       });
     });
     peer.on('error', (err) => {
+      if (rejoin && (!conn || !conn.open)) {
+        retrySoon();
+        return;
+      }
       if (err.type === 'peer-unavailable') {
         teardown();
         showJoin(`No game found with code ${code}. Check the code and that the host has started hosting.`, true);
@@ -184,8 +259,12 @@
         lastPong = performance.now();
         break;
       case 'full':
+        if (reconnect) { retrySoon(); break; }
         teardown();
         showJoin('That game already has two players.', true);
+        break;
+      case 'bye':
+        hostSaidBye = true;
         break;
       case 'error':
         setVideoStatus('The host could not start the video: ' + msg.message);
@@ -196,18 +275,49 @@
     }
   }
 
-  function hostGone(text) {
+  // ---------- getting back in after a dropped connection ----------
+  function connectionLost() {
     if (!conn) return;
     teardown();
     showScreen();
-    els.info.hidden = true;
-    setOverlay(text, true);
+    if (hostSaidBye) {
+      els.info.hidden = true;
+      setOverlay('The host ended the game.', true);
+      return;
+    }
+    reconnect = { until: Date.now() + RECONNECT_FOR_MS, attempt: 0, timer: null };
+    retrySoon(0);
+  }
+
+  function retrySoon(delay = 2000) {
+    if (!reconnect) return;
+    teardown();
+    clearTimeout(reconnect.timer);
+    if (Date.now() > reconnect.until) {
+      stopReconnecting();
+      els.info.hidden = true;
+      setOverlay('Could not reconnect to the host. They may have closed the game.', true, true);
+      return;
+    }
+    setOverlay(`Connection lost. Reconnecting… (attempt ${reconnect.attempt + 1})`);
+    reconnect.timer = setTimeout(() => {
+      if (!reconnect) return;
+      reconnect.attempt++;
+      join(currentCode, true);
+    }, delay);
+  }
+
+  function stopReconnecting() {
+    if (reconnect) clearTimeout(reconnect.timer);
+    reconnect = null;
   }
 
   function teardown() {
+    clearTimeout(connectTimer);
     timers.forEach(clearInterval);
     timers = [];
     pressed.clear();
+    padState = {};
     lastSent = '';
     gotVideo = false;
     videoStatus = 'Waiting for the host to send the video…';
@@ -229,6 +339,7 @@
   }
 
   function leave() {
+    stopReconnecting();
     teardown();
     history.replaceState(null, '', location.pathname);
     document.title = 'Fireboy & Watergirl Online';
@@ -259,7 +370,7 @@
     lastPong = performance.now();
     timers.push(setInterval(() => {
       if (performance.now() - lastPong > settings.hostTimeoutMs) {
-        hostGone('Lost the connection to the host.');
+        connectionLost();
         return;
       }
       sendFast({ t: 'ping', ts: performance.now(), rtt });
@@ -268,9 +379,18 @@
     // 100 ms while keys are held or just changed, otherwise twice a second.
     timers.push(setInterval(() => {
       const now = performance.now();
-      if (pressed.size || now - lastKeyChange < 600 || now - lastKeySend >= 500) sendKeys(true);
+      if (lastSent.includes('1') || now - lastKeyChange < 600 || now - lastKeySend >= 500) sendKeys(true);
     }, 100));
     timers.push(setInterval(updateStats, 1000));
+    timers.push(setInterval(pollPad, 16));
+  }
+
+  function pollPad() {
+    const next = FBWG.readGamepads(controls.gamepad);
+    if (DIRECTIONS.some((d) => !!next[d] !== !!padState[d])) {
+      padState = next;
+      sendKeys();
+    }
   }
 
   // ---------- video ----------
@@ -358,7 +478,11 @@
   // ---------- input ----------
   function keyState() {
     const k = {};
-    for (const code of pressed) k[KEY_TO_DIR[code]] = true;
+    for (const code of pressed) {
+      const d = dirFor(code);
+      if (d) k[d] = true;
+    }
+    for (const d of DIRECTIONS) if (padState[d]) k[d] = true;
     return k;
   }
 
@@ -384,7 +508,7 @@
 
   window.addEventListener('keydown', (e) => {
     if (typingInField(e) || !conn) return;
-    if (KEY_TO_DIR[e.code]) {
+    if (ALL_MOVE_CODES.has(e.code)) {
       e.preventDefault();
       if (e.repeat) return;
       pressed.add(e.code);
@@ -397,7 +521,7 @@
   });
 
   window.addEventListener('keyup', (e) => {
-    if (!KEY_TO_DIR[e.code]) return;
+    if (!ALL_MOVE_CODES.has(e.code)) return;
     pressed.delete(e.code);
     if (conn) sendKeys();
   });
@@ -480,6 +604,9 @@
   els.soundBtn.addEventListener('click', () => toggleSound());
   els.unmuteBtn.addEventListener('click', () => toggleSound(true));
   els.leaveBtn.addEventListener('click', leave);
+  els.controlsBtn.addEventListener('click', () => {
+    chrome.windows.create({ url: chrome.runtime.getURL('controls.html'), type: 'popup', width: 560, height: 760, focused: true });
+  });
   els.codeInput.addEventListener('input', () => {
     els.codeInput.value = normalizeCode(els.codeInput.value);
   });

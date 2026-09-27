@@ -1,0 +1,39 @@
+/* viewer.css styles every input like the big room-code box; undo that here. */
+input[type="radio"], input[type="checkbox"], input[type="range"] {
+  flex: none; width: auto; min-width: 0; padding: 0; margin: 0; border: 0; background: none;
+  font: inherit; letter-spacing: normal; text-transform: none; text-align: left;
+  accent-color: var(--water);
+}
+input[type="radio"], input[type="checkbox"] { width: 18px; height: 18px; }
+.slider input[type="range"] { flex: 1; }
+
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.choices { border: 0; padding: 0; margin: 8px 0; display: grid; gap: 8px; }
+.choices label {
+  display: flex; gap: 10px; align-items: center; padding: 10px 12px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--bg);
+}
+.choices label:has(input:checked) { border-color: var(--water); }
+
+.small { font-size: 13px; }
+
+.bindings { width: 100%; border-collapse: collapse; margin: 12px 0; }
+.bindings th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 4px 8px; }
+.bindings td { padding: 8px; border-top: 1px solid var(--line); vertical-align: middle; }
+.bindings tr.active td { background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.bindings td.action { font-weight: 700; white-space: nowrap; }
+.bindings td.add { text-align: right; white-space: nowrap; }
+
+.chip-b {
+  display: inline-flex; align-items: center; gap: 4px; margin: 2px 4px 2px 0;
+  padding: 2px 4px 2px 10px; border-radius: 999px; background: #222b3b; font-size: 13px;
+}
+.chip-b button { padding: 0 6px; border: 0; background: none; color: var(--muted); font-size: 15px; line-height: 1; }
+.chip-b button:hover { color: var(--bad); }
+.none { color: var(--muted); font-size: 13px; }
+.waiting { color: var(--warn); font-size: 13px; }
+
+.slider { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.slider input { flex: 1; }
+.slider output { width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }

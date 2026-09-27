@@ -61,6 +61,9 @@ button.primary { width: 100%; border: 0; color: #0b0f17; background: linear-grad
 button.ghost { width: 100%; background: transparent; margin-top: 8px; }
 
 #roomBox { margin-top: 12px; }
+.keys-line { color: var(--muted); }
+button.invite { width: 100%; margin-top: 8px; }
+p.small button.link { font-size: 12px; }
 
 button.ghost.top { margin: 0 0 10px; }
 

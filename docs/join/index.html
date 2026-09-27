@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Join a Fireboy &amp; Watergirl game</title>
+  <meta name="description" content="You're invited to play Fireboy and Watergirl online.">
+  <style>
+    :root {
+      --bg: #0b0f17; --panel: #141a26; --line: #243044; --text: #e8edf6; --muted: #8b97ab;
+      --fire: #ff6a3d; --water: #3db7ff; --bad: #ff5a5a;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px 16px;
+      background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    main { width: min(460px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 28px; }
+    h1 { font-size: 22px; margin: 0 0 6px; }
+    .fire { color: var(--fire); } .water { color: var(--water); }
+    p { margin: 0 0 14px; color: var(--muted); }
+    .code {
+      font: 800 34px/1 ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: 8px; text-align: center;
+      padding: 14px; margin: 8px 0 18px; border: 1px dashed var(--line); border-radius: 10px; color: var(--text);
+    }
+    button, a.btn {
+      display: block; width: 100%; text-align: center; font: 700 17px/1 system-ui, sans-serif; color: #0b0f17;
+      background: linear-gradient(90deg, var(--fire), var(--water)); border: 0; border-radius: 10px;
+      padding: 14px; cursor: pointer; text-decoration: none;
+    }
+    button:focus-visible, a:focus-visible { outline: 2px solid var(--water); outline-offset: 3px; }
+    ol { color: var(--muted); padding-left: 20px; margin: 0 0 16px; }
+    li { margin-bottom: 6px; }
+    li strong { color: var(--text); }
+    a { color: var(--water); }
+    .credit { text-align: center; font-size: 12px; margin: 18px 0 0; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1><span class="fire">Fireboy</span> &amp; <span class="water">Watergirl</span> Online</h1>
+    <p id="lead">Your friend invited you to play.</p>
+    <div class="code" id="code" aria-label="Room code"></div>
+
+    <section id="ready" hidden>
+      <button type="button" data-fbwg-join>Join the game</button>
+    </section>
+
+    <section id="install" hidden>
+      <p>To join, install the free Chrome extension first (about a minute):</p>
+      <ol>
+        <li>Download <a href="https://github.com/XYZ3147/fbwg-online/releases/latest/download/fbwg-online.zip">fbwg-online.zip</a> and unzip it.</li>
+        <li>Open <strong>chrome://extensions</strong> and turn on <strong>Developer mode</strong> (top right).</li>
+        <li>Click <strong>Load unpacked</strong> and pick the unzipped folder.</li>
+        <li>Come back to this page and reload it.</li>
+      </ol>
+      <a class="btn" href="https://github.com/XYZ3147/fbwg-online/releases/latest/download/fbwg-online.zip">Download the extension</a>
+    </section>
+
+    <section id="noCode" hidden>
+      <p>This invite link is missing its room code. Ask your friend to copy the invite link again.</p>
+    </section>
+
+    <p class="credit">Made by XYZ</p>
+  </main>
+
+  <script>
+    (function () {
+      var code = (location.hash.slice(1) || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      var $ = function (id) { return document.getElementById(id); };
+      if (code.length !== 5) {
+        $('code').hidden = true;
+        $('lead').hidden = true;
+        $('noCode').hidden = false;
+        return;
+      }
+      $('code').textContent = code;
+      function show() {
+        var installed = document.documentElement.dataset.fbwg === 'installed';
+        $('ready').hidden = !installed;
+        $('install').hidden = installed;
+      }
+      document.addEventListener('fbwg-installed', show);
+      // The extension marks the page once it has loaded; give it a moment.
+      setTimeout(show, 600);
+      show();
+    })();
+  </script>
+</body>
+</html>

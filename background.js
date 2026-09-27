@@ -112,6 +112,14 @@ async function reloadIfUpdatedOnDisk() {
 
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (!msg || msg.to !== 'fbwg-bg') return;
+  // From the invite page: open the game window for that room.
+  if (msg.type === 'openViewer') {
+    const code = FBWG.normalizeCode(msg.code);
+    const fromInvite = _sender.url && _sender.url.startsWith(FBWG.JOIN_PAGE);
+    if (!fromInvite || code.length !== FBWG.CODE_LENGTH) return;
+    chrome.windows.create({ url: chrome.runtime.getURL('viewer.html?code=' + code), type: 'popup', width: 960, height: 800, focused: true });
+    return;
+  }
   if (msg.type === 'diskCheck') {
     reloadIfUpdatedOnDisk().then(() => reply({ ok: true }), (e) => reply({ ok: false, error: e.message }));
     return true;

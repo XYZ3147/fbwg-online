@@ -75,13 +75,16 @@
     const active = s.status !== 'idle';
     $('goToGameBtn').hidden = tabId === activeTabId;
     $('roleSelect').value = s.guestRole;
-    $('lockCheck').checked = s.lockGuestKeys;
+    $('hostKeys').textContent = s.hostRole
+      ? `You play ${ROLE_NAMES[s.hostRole]} with ${s.hostKeys}`
+      : '';
     $('startBtn').hidden = active;
     $('startBtn').disabled = !s.hasCanvas;
     $('startBtn').textContent = s.hasCanvas ? 'Start hosting' : 'Waiting for the game to load…';
     $('roomBox').hidden = !active;
     $('codeOut').textContent = s.code || '·····';
     $('copyBtn').disabled = !s.code || s.status === 'starting';
+    $('inviteBtn').disabled = $('copyBtn').disabled;
 
     const st = $('hostStatus');
     st.className = 'status ' + (s.status === 'connected' ? 'connected' : s.status === 'error' ? 'error' : '');
@@ -214,11 +217,25 @@
   });
 
   $('startBtn').addEventListener('click', async () => {
-    render(await ask('start', { guestRole: $('roleSelect').value, lockGuestKeys: $('lockCheck').checked }));
+    render(await ask('start', { guestRole: $('roleSelect').value }));
   });
   $('stopBtn').addEventListener('click', async () => render(await ask('stop')));
   $('roleSelect').addEventListener('change', async (e) => render(await ask('role', { role: e.target.value })));
-  $('lockCheck').addEventListener('change', async (e) => render(await ask('lock', { on: e.target.checked })));
+  for (const b of document.querySelectorAll('.controls-link')) {
+    b.addEventListener('click', () => {
+      chrome.windows.create({ url: chrome.runtime.getURL('controls.html'), type: 'popup', width: 560, height: 760, focused: true });
+      window.close();
+    });
+  }
+
+  $('inviteBtn').addEventListener('click', async () => {
+    if (!last || !last.code) return;
+    try {
+      await navigator.clipboard.writeText(FBWG.inviteLink(last.code));
+      $('inviteBtn').textContent = 'Link copied. Send it to your friend';
+      setTimeout(() => { $('inviteBtn').textContent = 'Copy invite link'; }, 2000);
+    } catch {}
+  });
 
   $('copyBtn').addEventListener('click', async () => {
     if (!last || !last.code) return;

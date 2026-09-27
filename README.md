@@ -22,20 +22,36 @@ account or server setup is needed.
 1. Click the extension button, pick a game, and click **Open game only**. The game opens in
    its own window without the rest of the website. The normal Coolmath page works too.
 2. Click the extension button → choose which character your friend plays → **Start hosting**.
-3. Send your friend the 5-letter room code.
+3. Click **Copy invite link** and send it to your friend (or send the 5-letter room code).
 
 While hosting, the game keeps running if you switch tabs or minimize, so your friend's
 picture doesn't freeze.
 
 **Friend**
-1. Click the extension button, type the code under **Join a friend**, press **Join**. The game
-   opens in its own window, like the host's.
-2. Move with the arrow keys or W/A/D (either set controls your character). Click the
-   picture to use the game's menus.
+1. Open the invite link and click **Join the game**, or click the extension button, type the code
+   under **Join a friend** and press **Join**. The game opens in its own window, like the host's.
+2. Move with your keys or controller (see **Controls** below). Click the picture to use the game's menus.
 3. The top right shows frames per second, ping, the video buffer delay, and whether the connection is
    **direct** or **relayed** (relayed adds lag; it happens on strict networks).
 4. Click once on the picture for sound. `F` toggles fullscreen and `M` toggles mute. The **Fit** button switches
    the picture between Fit (whole picture), Stretch (fills the window, a bit wider) and Zoom (fills it, edges cut off).
+
+If the connection drops, the friend's window reconnects by itself (for up to a minute) and
+drops straight back into the game. When the host clicks **Stop hosting**, the friend is told the
+game has ended instead.
+
+## Controls
+
+Open **Controls** from the popup or the friend's window. Settings apply whether you host or join,
+and change right away, even mid-game.
+
+- **Keyboard:** *Automatic* (Fireboy on arrow keys, Watergirl on WASD), *Arrow keys* or *WASD*, for
+  either character. When you host, the other set of keys is ignored so you can't move your
+  friend's character.
+- **Controller:** works for both host and friend. Default buttons: D-pad or left stick to move,
+  A / ✕ or D-pad ↑ to jump. To change a button, click **Add** next to an action and press the button
+  or push the stick you want; **×** removes one. The matching action lights up while you press, so
+  you can test it. **Stick sensitivity** sets how far the stick must be pushed.
 
 ## Saved progress
 
@@ -96,9 +112,14 @@ Values outside the allowed ranges are ignored and the defaults are used.
 
 ## Supported games
 
-Forest Temple (tested end to end), 2: Light Temple, 3: Ice Temple, 4: Crystal Temple
-(same engine as Forest Temple), 5: Elements (checked: it accepts the injected keys), and
-Fireboy and Watergirl and Friends.
+| Game | Status |
+| --- | --- |
+| Forest Temple | Played end to end. |
+| 2: Light Temple, 3: Ice Temple, 4: Crystal Temple | Same engine as Forest Temple. Checked: loads, streams at the game's ~25 fps, reads keys the same way, and saves under names the backup covers. |
+| and Friends | Checked: loads on its own, streams (about 30 fps), reads keys the same way, and saves under names the backup covers. |
+| 5: Elements | Reads keys the same way and saves under a covered name. It shows a video ad before the game, which couldn't be tested here. |
+
+A full online session has only been played on Forest Temple so far.
 
 ## Files
 
@@ -112,6 +133,9 @@ Fireboy and Watergirl and Friends.
 | `popup.html/.js/.css` | Game picker, host controls, join box, update check. |
 | `save-guard.js` | Backs up each game's save to extension storage and restores it if missing. |
 | `saves.html/.js/.css` | Manage saves: export, import, older versions, delete. |
+| `controls.html/.js/.css` | Keyboard layout and controller buttons. |
+| `invite.js` | Runs on the invite page and asks the extension to open the game. |
+| `docs/join/` | The invite page, served by GitHub Pages (not part of the extension zip). |
 | `Update.cmd`, `update.ps1` | One-click updater: downloads the latest release and replaces the files. |
 | `shared.js` | Key maps, game list, room-code and version helpers. |
 | `update.json` | Latest version, release notes and game list, read by the update checker. |

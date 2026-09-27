@@ -9,28 +9,42 @@
   // The game reads `keyCode`, which the KeyboardEvent constructor cannot set,
   // so it is defined on the instance. Dispatching on `document` reaches both the
   // game's document and window listeners.
+  function fireKey(type, k) {
+    const ev = new KeyboardEvent(type, { key: k.key, code: k.code, bubbles: true, cancelable: true });
+    Object.defineProperty(ev, 'keyCode', { get: () => k.keyCode });
+    Object.defineProperty(ev, 'which', { get: () => k.keyCode });
+    document.dispatchEvent(ev);
+  }
+
   document.addEventListener('fbwg-key', (e) => {
     let d;
     try { d = JSON.parse(e.detail); } catch { return; }
-    const ev = new KeyboardEvent(d.type, { key: d.key, code: d.code, bubbles: true, cancelable: true });
-    Object.defineProperty(ev, 'keyCode', { get: () => d.keyCode });
-    Object.defineProperty(ev, 'which', { get: () => d.keyCode });
-    ev.__fbwgRemote = true;
-    document.dispatchEvent(ev);
+    fireKey(d.type, d);
   });
 
-  // --- Lock the guest's character on the host keyboard ------------------------
-  // Real (trusted) key presses for the guest's keys are swallowed before the game
-  // sees them, so the host can't accidentally move their friend's character.
+  // --- The host's own keyboard while a friend is connected ---------------------
+  // The host's chosen keys (arrows or WASD) are translated into their
+  // character's keys; every other movement key is swallowed, so the host can
+  // play either character with either set and can't move their friend's.
+  let remap = {}; // physical keyCode -> { key, code, keyCode } the game should see
   let blocked = new Set();
-  document.addEventListener('fbwg-lock', (e) => {
-    try { blocked = new Set(JSON.parse(e.detail)); } catch { blocked = new Set(); }
+  document.addEventListener('fbwg-remap', (e) => {
+    try {
+      const d = JSON.parse(e.detail);
+      remap = d.map || {};
+      blocked = new Set(d.block || []);
+    } catch {
+      remap = {};
+      blocked = new Set();
+    }
   });
   const guard = (e) => {
-    if (e.isTrusted && blocked.has(e.keyCode)) {
-      e.stopImmediatePropagation();
-      e.preventDefault();
-    }
+    if (!e.isTrusted) return;
+    const to = remap[e.keyCode];
+    if (!to && !blocked.has(e.keyCode)) return;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    if (to) fireKey(e.type, to);
   };
   window.addEventListener('keydown', guard, true);
   window.addEventListener('keyup', guard, true);

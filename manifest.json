@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Fireboy & Watergirl Online",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Play Fireboy and Watergirl on Coolmath Games with a friend on another computer. Made by XYZ.",
   "icons": {
     "16": "icons/icon16.png",
@@ -9,8 +9,16 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": ["activeTab", "scripting", "storage", "alarms"],
-  "host_permissions": ["https://www.coolmathgames.com/*", "https://coolmathgames.com/*"],
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://www.coolmathgames.com/*",
+    "https://coolmathgames.com/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },
@@ -21,5 +29,17 @@
       "16": "icons/icon16.png",
       "32": "icons/icon32.png"
     }
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://xyz3147.github.io/fbwg-online/join/*"
+      ],
+      "js": [
+        "shared.js",
+        "invite.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
 }
