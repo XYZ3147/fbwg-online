@@ -28,6 +28,11 @@
   let gotVideo = false;
   const pressed = new Set(); // physical key codes currently held
   let lastSent = '';
+  let fast = null; // unordered channel for keys and pings (no waiting behind a lost packet)
+  let keySeq = 0;
+  let lastKeyChange = 0;
+  let lastKeySend = 0;
+  let lastJb = null; // previous jitter-buffer counters, for the delay shown in the stats
   let lastPong = 0;
   let videoStatus = 'Waiting for the host to send the video…';
   // Tunable from the update file without a new version.
@@ -124,6 +129,7 @@
         showScreen();
         refreshOverlay();
         startTimers();
+        openFastChannel(code);
       });
       conn.on('data', onHostData);
       conn.on('close', () => hostGone('The host ended the game or closed the tab.'));
@@ -210,6 +216,9 @@
     const c = conn;
     conn = null;
     if (c) { try { c.close(); } catch {} }
+    if (fast) { try { fast.close(); } catch {} }
+    fast = null;
+    lastJb = null;
     if (mediaCall) { try { mediaCall.close(); } catch {} }
     mediaCall = null;
     if (peer) { try { peer.destroy(); } catch {} }
@@ -230,6 +239,22 @@
     if (conn && conn.open) conn.send(msg);
   }
 
+  // Keys and pings go over the unordered channel when it's up, else the main one.
+  function sendFast(msg) {
+    if (fast && fast.open) fast.send(msg);
+    else send(msg);
+  }
+
+  function openFastChannel(code) {
+    if (!peer || peer.destroyed) return;
+    const c = peer.connect(peerIdFor(code), { reliable: false, serialization: 'json', metadata: { kind: 'fast' } });
+    fast = c;
+    c.on('data', onHostData);
+    const gone = () => { if (fast === c) fast = null; };
+    c.on('close', gone);
+    c.on('error', gone);
+  }
+
   function startTimers() {
     lastPong = performance.now();
     timers.push(setInterval(() => {
@@ -237,10 +262,14 @@
         hostGone('Lost the connection to the host.');
         return;
       }
-      send({ t: 'ping', ts: performance.now(), rtt });
+      sendFast({ t: 'ping', ts: performance.now(), rtt });
     }, 1000));
-    // Resend the full key state regularly so a lost/late message can't leave a key stuck.
-    timers.push(setInterval(() => sendKeys(true), 300));
+    // Resend the full key state so a lost message can't leave a key stuck: every
+    // 100 ms while keys are held or just changed, otherwise twice a second.
+    timers.push(setInterval(() => {
+      const now = performance.now();
+      if (pressed.size || now - lastKeyChange < 600 || now - lastKeySend >= 500) sendKeys(true);
+    }, 100));
     timers.push(setInterval(updateStats, 1000));
   }
 
@@ -291,18 +320,38 @@
 
   async function updateStats() {
     let fps = null;
+    let buffer = null;
+    let path = null;
     const pc = mediaCall && mediaCall.peerConnection;
     if (pc) {
       try {
         const report = await pc.getStats();
+        let pairId = null;
         report.forEach((s) => {
-          if (s.type === 'inbound-rtp' && s.kind === 'video' && s.framesPerSecond != null) fps = s.framesPerSecond;
+          if (s.type === 'inbound-rtp' && s.kind === 'video') {
+            if (s.framesPerSecond != null) fps = s.framesPerSecond;
+            // Average time frames waited in the jitter buffer over the last second.
+            if (s.jitterBufferEmittedCount != null) {
+              if (lastJb && s.jitterBufferEmittedCount > lastJb.n) {
+                buffer = ((s.jitterBufferDelay - lastJb.d) / (s.jitterBufferEmittedCount - lastJb.n)) * 1000;
+              }
+              lastJb = { d: s.jitterBufferDelay, n: s.jitterBufferEmittedCount };
+            }
+          }
+          if (s.type === 'transport' && s.selectedCandidatePairId) pairId = s.selectedCandidatePairId;
         });
+        const pair = pairId && report.get(pairId);
+        if (pair) {
+          const types = [report.get(pair.localCandidateId), report.get(pair.remoteCandidateId)].map((c) => c && c.candidateType);
+          path = types.includes('relay') ? 'relayed' : 'direct';
+        }
       } catch {}
     }
     const parts = [];
     if (fps != null) parts.push(`${Math.round(fps)} fps`);
     if (rtt != null) parts.push(`${Math.round(rtt)} ms ping`);
+    if (buffer != null) parts.push(`${Math.round(buffer)} ms buffer`);
+    if (path) parts.push(path);
     els.stats.textContent = parts.join(' · ');
   }
 
@@ -317,8 +366,11 @@
     const k = keyState();
     const sig = DIRECTIONS.map((d) => (k[d] ? 1 : 0)).join('');
     if (!force && sig === lastSent) return;
+    const now = performance.now();
+    if (sig !== lastSent) lastKeyChange = now;
     lastSent = sig;
-    send({ t: 'keys', k });
+    lastKeySend = now;
+    sendFast({ t: 'keys', k, seq: ++keySeq });
   }
 
   function releaseAll() {

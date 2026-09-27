@@ -50,6 +50,7 @@
   const useTicker = () => background && document.hidden;
 
   function schedule(id, entry) {
+    entry.requested = performance.now();
     entry.raf = useTicker() ? null : origRAF((ts) => { pending.delete(id); entry.cb(ts); });
   }
 
@@ -67,10 +68,15 @@
     pending.delete(id);
   };
 
+  // Also covers frames Chrome holds back while still reporting the tab as
+  // visible (for example a window behind others): anything waiting longer
+  // than STALL_MS is run here instead.
+  const STALL_MS = 100;
   function tick() {
-    if (!useTicker()) return;
+    if (!background) return;
     const now = performance.now();
-    const due = [...pending.entries()].filter(([, e]) => e.raf == null);
+    const due = [...pending.entries()].filter(([, e]) => e.raf == null || now - e.requested > STALL_MS);
+    for (const [, e] of due) if (e.raf != null) origCAF(e.raf);
     for (const [id, e] of due) {
       pending.delete(id);
       try { e.cb(now); } catch (err) { console.error(err); }

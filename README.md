@@ -32,7 +32,9 @@ picture doesn't freeze.
    opens in its own window, like the host's.
 2. Move with the arrow keys or W/A/D (either set controls your character). Click the
    picture to use the game's menus.
-3. Click once on the picture for sound. `F` toggles fullscreen and `M` toggles mute.
+3. The top right shows frames per second, ping, the video buffer delay, and whether the connection is
+   **direct** or **relayed** (relayed adds lag; it happens on strict networks).
+4. Click once on the picture for sound. `F` toggles fullscreen and `M` toggles mute.
 
 ## Saved progress
 
@@ -84,6 +86,7 @@ Edit `update.json` on `main` and push; no release needed.
 | `announcement` | A short message shown at the top of the popup (up to 300 characters). Empty hides it. |
 | `settings.maxBitrate` | Video quality cap in bits per second (250,000 to 20,000,000). |
 | `settings.maxFramerate` | Stream frame rate cap (10 to 120). |
+| `settings.maxWidth` | The stream is scaled down to at most this width (320 to 3840, default 960). Smaller means less lag and bandwidth. |
 | `settings.guestTimeoutMs` / `hostTimeoutMs` | How long a silent connection is kept before it's dropped (3,000 to 60,000 ms). |
 | `settings.iceServers` | Replacement connection servers (`stun:`/`turn:` addresses), if PeerJS's own ones stop working. `null` uses PeerJS's. |
 | `settings.savePrefixes` | Extra save-entry name prefixes to back up, for games that save under other names. |

@@ -18,6 +18,8 @@
 
   let peer = null;
   let conn = null;
+  let fast = null; // unordered channel for keys and pings; conn stays ordered for clicks and control
+  let lastKeySeq = -1;
   let call = null;
   let stream = null;
   let held = {}; // direction -> bool, what we've told the game the guest is holding
@@ -103,6 +105,8 @@
       if (!params.encodings || !params.encodings.length) params.encodings = [{}];
       params.encodings[0].maxBitrate = settings.maxBitrate;
       params.encodings[0].maxFramerate = settings.maxFramerate;
+      const width = sender.track.getSettings().width || 0;
+      params.encodings[0].scaleResolutionDownBy = Math.max(1, width / settings.maxWidth);
       params.degradationPreference = 'maintain-framerate';
       sender.setParameters(params).catch(() => {});
     }
@@ -143,18 +147,23 @@
   }
 
   // ---------- guest connection ----------
-  function onGuestData(msg) {
+  function onGuestData(msg, from) {
     if (!msg || typeof msg !== 'object') return;
     lastSeen = Date.now();
     switch (msg.t) {
       case 'keys':
+        // Unordered delivery: ignore a state older than one already applied.
+        if (typeof msg.seq === 'number') {
+          if (msg.seq <= lastKeySeq) break;
+          lastKeySeq = msg.seq;
+        }
         setHeld(msg.k || {});
         break;
       case 'mouse':
         replayMouse(msg);
         break;
       case 'ping':
-        conn.send({ t: 'pong', ts: msg.ts });
+        if (from && from.open) from.send({ t: 'pong', ts: msg.ts });
         if (typeof msg.rtt === 'number') { state.rtt = msg.rtt; render(); }
         break;
     }
@@ -187,6 +196,7 @@
     }
     conn = c;
     held = {};
+    lastKeySeq = -1;
     lastSeen = Date.now();
     c.on('open', () => {
       lastSeen = Date.now();
@@ -201,11 +211,13 @@
       applyLock();
       render();
     });
-    c.on('data', onGuestData);
+    c.on('data', (m) => onGuestData(m, c));
     const drop = () => {
       if (conn !== c) return;
       releaseAll();
       conn = null;
+      if (fast) { try { fast.close(); } catch {} }
+      fast = null;
       try { c.close(); } catch {}
       if (call) call.close();
       call = null;
@@ -218,6 +230,20 @@
     c.on('close', drop);
     c.on('error', drop);
     c.__fbwgDrop = drop;
+  }
+
+  // Only the current guest may add a fast channel; it lives and dies with their main one.
+  function acceptFast(c) {
+    if (!conn || c.peer !== conn.peer) {
+      setTimeout(() => { try { c.close(); } catch {} }, 0);
+      return;
+    }
+    if (fast && fast !== c) { try { fast.close(); } catch {} }
+    fast = c;
+    c.on('data', (m) => onGuestData(m, c));
+    const gone = () => { if (fast === c) fast = null; };
+    c.on('close', gone);
+    c.on('error', gone);
   }
 
   // The guest pings every second. If it goes silent (crash, network loss) free
@@ -245,6 +271,10 @@
       render();
     });
     peer.on('connection', (c) => {
+      if (c.metadata && c.metadata.kind === 'fast') {
+        acceptFast(c);
+        return;
+      }
       if (conn && conn.open) {
         c.on('open', () => c.send({ t: 'full' }));
         setTimeout(() => { try { c.close(); } catch {} }, 3000);
@@ -293,8 +323,10 @@
   function stopHosting() {
     releaseAll();
     if (conn) { try { conn.close(); } catch {} }
+    if (fast) { try { fast.close(); } catch {} }
     if (call) { try { call.close(); } catch {} }
     conn = null;
+    fast = null;
     call = null;
     stopStream();
     if (peer) { try { peer.destroy(); } catch {} }
@@ -325,6 +357,11 @@
   }
 
   window.addEventListener('pagehide', stopHosting);
+  // The stream's size follows the canvas, so re-apply the width cap on resize.
+  window.addEventListener('resize', () => {
+    const pc = call && call.peerConnection;
+    if (pc && pc.connectionState === 'connected') setTimeout(() => tuneSenders(pc), 250);
+  });
 
   // ---------- on-page status pill ----------
   let pill = null;

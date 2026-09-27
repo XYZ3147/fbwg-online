@@ -115,6 +115,7 @@ var FBWG = (() => {
   const DEFAULT_SETTINGS = {
     maxBitrate: 4000000, // video quality cap, bits per second
     maxFramerate: 60,
+    maxWidth: 960, // stream is scaled down to at most this width (the games are ~640 px)
     guestTimeoutMs: 8000, // host frees the slot after this much silence
     hostTimeoutMs: 10000, // friend gives up after this much silence
     iceServers: null, // null = PeerJS's own connection servers
@@ -130,6 +131,7 @@ var FBWG = (() => {
     if (!raw || typeof raw !== 'object') return s;
     s.maxBitrate = num(raw.maxBitrate, 250000, 20000000, s.maxBitrate);
     s.maxFramerate = num(raw.maxFramerate, 10, 120, s.maxFramerate);
+    s.maxWidth = num(raw.maxWidth, 320, 3840, s.maxWidth);
     s.guestTimeoutMs = num(raw.guestTimeoutMs, 3000, 60000, s.guestTimeoutMs);
     s.hostTimeoutMs = num(raw.hostTimeoutMs, 3000, 60000, s.hostTimeoutMs);
     if (Array.isArray(raw.iceServers)) {
