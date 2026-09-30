@@ -48,11 +48,13 @@
   let currentCode = '';
   let reconnect = null; // { until, attempt, timer } while trying to get back in
   let hostSaidBye = false;
+  let hostOutdated = false;
+  let lastVideoStatus = '';
   let connectTimer = null;
 
   let peer = null;
   let conn = null;
-  let mediaCall = null;
+  let answering = Promise.resolve(); // video offers are answered one at a time
   let role = null;
   let rtt = null;
   let timers = [];
@@ -60,7 +62,7 @@
   let gotVideo = false;
   const pressed = new Set(); // physical key codes currently held
   let lastSent = '';
-  let fast = null; // unordered channel for keys and pings (no waiting behind a lost packet)
+  let fast = null; // extra unordered channel on the same connection, for keys and pings
   let keySeq = 0;
   let lastKeyChange = 0;
   let lastKeySend = 0;
@@ -124,23 +126,57 @@
 
   function setVideoStatus(text) {
     videoStatus = text;
+    lastVideoStatus = text;
     console.info('[FBWG] video:', text);
     refreshOverlay();
   }
 
-  const ICE_TEXT = {
-    checking: 'Connecting the video…',
-    connected: 'Video connected, waiting for the first frame…',
-    completed: 'Video connected, waiting for the first frame…',
-    disconnected: 'The video connection dropped, trying to recover…',
-    failed: 'The video connection failed. A firewall or strict network is probably blocking it.',
-  };
+  // Video and sound arrive on the same connection as the controls, so once we
+  // are connected there is no second route that could fail.
+  const mediaPc = () => (conn && conn.peerConnection) || null;
 
-  function watchVideoConnection(pc) {
+  function watchForVideo(c) {
+    const pc = c.peerConnection;
     if (!pc) return;
-    const update = () => { if (ICE_TEXT[pc.iceConnectionState]) setVideoStatus(ICE_TEXT[pc.iceConnectionState]); };
-    pc.addEventListener('iceconnectionstatechange', update);
-    update();
+    pc.addEventListener('track', (e) => {
+      if (conn !== c) return;
+      const stream = e.streams[0] || new MediaStream([e.track]);
+      setVideoStatus('Video is starting…');
+      tuneReceivers(pc);
+      if (els.video.srcObject !== stream) els.video.srcObject = stream;
+      playVideo();
+    });
+  }
+
+  // The host offers its video through the open channel; answer the same way.
+  function answerOffer(c, offer) {
+    answering = answering.then(async () => {
+      const pc = c.peerConnection;
+      if (conn !== c || !pc) return;
+      await pc.setRemoteDescription(offer);
+      await pc.setLocalDescription(await pc.createAnswer());
+      c.send({ t: 'sdp', d: { type: pc.localDescription.type, sdp: pc.localDescription.sdp } });
+    }).catch((e) => setVideoStatus('Could not set up the video: ' + (e.message || e)));
+  }
+
+  // Keys and pings get their own unordered channel on the same connection.
+  function openFastChannel(c) {
+    const pc = c.peerConnection;
+    if (!pc || fast) return;
+    let ch;
+    try { ch = pc.createDataChannel(FBWG.FAST_LABEL, { ordered: false, maxRetransmits: 0 }); } catch { return; }
+    const wrap = {
+      get open() { return ch.readyState === 'open'; },
+      send(msg) { if (ch.readyState === 'open') ch.send(JSON.stringify(msg)); },
+      close() { try { ch.close(); } catch {} },
+    };
+    ch.onmessage = (ev) => {
+      let m;
+      try { m = JSON.parse(ev.data); } catch { return; }
+      onHostData(m);
+    };
+    ch.onclose = () => { if (fast === wrap) fast = null; };
+    fast = wrap;
   }
 
   function setRole(r) {
@@ -179,6 +215,8 @@
     if (!rejoin) {
       stopReconnecting();
       hostSaidBye = false;
+      hostOutdated = false;
+      lastVideoStatus = '';
       history.replaceState(null, '', '?code=' + code);
       els.joinBtn.disabled = true;
       els.joinMsg.classList.remove('bad');
@@ -188,38 +226,27 @@
     connectTimer = setTimeout(() => {
       if (conn && conn.open) return;
       if (rejoin) retrySoon();
-      else { teardown(); showJoin('Could not reach the host. Check the code and try again.', true); }
+      else {
+        teardown();
+        showJoin('Could not connect to the host. If the code is right, one of your networks is blocking direct connections (common on school, office, hotel and some mobile networks). Try a different network, such as a phone hotspot.', true);
+      }
     }, rejoin ? 12000 : 25000);
 
     peer = new Peer(FBWG.peerOptions(settings));
     peer.on('open', () => {
-      conn = peer.connect(peerIdFor(code), { reliable: true, serialization: 'json', metadata: { guestId } });
+      conn = peer.connect(peerIdFor(code), { reliable: true, serialization: 'json', metadata: { guestId, proto: FBWG.PROTO } });
+      watchForVideo(conn);
       conn.on('open', () => {
         clearTimeout(connectTimer);
         stopReconnecting();
         showScreen();
         refreshOverlay();
         startTimers();
-        openFastChannel(code);
         send({ t: 'quality', mode: quality });
       });
       conn.on('data', onHostData);
       conn.on('close', () => connectionLost());
       conn.on('error', () => connectionLost());
-    });
-    peer.on('call', (c) => {
-      if (mediaCall && mediaCall !== c) mediaCall.close();
-      mediaCall = c;
-      setVideoStatus('Video call received, connecting…');
-      c.answer();
-      watchVideoConnection(c.peerConnection);
-      c.on('error', (e) => setVideoStatus('Video call error: ' + (e.message || e.type)));
-      c.on('stream', (s) => {
-        setVideoStatus('Video connected, waiting for the first frame…');
-        tuneReceivers(c.peerConnection);
-        els.video.srcObject = s;
-        playVideo();
-      });
     });
     peer.on('error', (err) => {
       if (rejoin && (!conn || !conn.open)) {
@@ -243,9 +270,20 @@
     if (!msg || typeof msg !== 'object') return;
     switch (msg.t) {
       case 'hello':
+        // Both players need the same connection design.
+        if (msg.proto !== FBWG.PROTO) {
+          hostOutdated = true;
+          setVideoStatus('The host has an older version of the extension. Ask them to update it (double-click Update.cmd in their extension folder), then join again.');
+          break;
+        }
         setRole(msg.role);
         hostHidden = !!msg.hostHidden;
+        // The host is now ready for our fast channel (it takes over the handler first).
+        if (conn) openFastChannel(conn);
         refreshOverlay();
+        break;
+      case 'sdp':
+        if (conn && msg.d && msg.d.type === 'offer') answerOffer(conn, msg.d);
         break;
       case 'role':
         releaseAll();
@@ -273,9 +311,6 @@
       case 'error':
         setVideoStatus('The host could not start the video: ' + msg.message);
         break;
-      case 'hostVideo':
-        if (!gotVideo && msg.s === 'failed') setVideoStatus(ICE_TEXT.failed);
-        break;
     }
   }
 
@@ -289,6 +324,11 @@
       setOverlay('The host ended the game.', true);
       return;
     }
+    if (hostOutdated || /out of date/.test(lastVideoStatus)) {
+      els.info.hidden = true;
+      setOverlay(lastVideoStatus, true);
+      return;
+    }
     reconnect = { until: Date.now() + RECONNECT_FOR_MS, attempt: 0, timer: null };
     retrySoon(0);
   }
@@ -300,7 +340,7 @@
     if (Date.now() > reconnect.until) {
       stopReconnecting();
       els.info.hidden = true;
-      setOverlay('Could not reconnect to the host. They may have closed the game.', true, true);
+      setOverlay('Could not reconnect to the host. They may have closed the game, or a network is blocking the connection.', true, true);
       return;
     }
     setOverlay(`Connection lost. Reconnecting… (attempt ${reconnect.attempt + 1})`);
@@ -333,8 +373,6 @@
     if (fast) { try { fast.close(); } catch {} }
     fast = null;
     lastJb = null;
-    if (mediaCall) { try { mediaCall.close(); } catch {} }
-    mediaCall = null;
     if (peer) { try { peer.destroy(); } catch {} }
     peer = null;
     els.video.srcObject = null;
@@ -358,16 +396,6 @@
   function sendFast(msg) {
     if (fast && fast.open) fast.send(msg);
     else send(msg);
-  }
-
-  function openFastChannel(code) {
-    if (!peer || peer.destroyed) return;
-    const c = peer.connect(peerIdFor(code), { reliable: false, serialization: 'json', metadata: { kind: 'fast' } });
-    fast = c;
-    c.on('data', onHostData);
-    const gone = () => { if (fast === c) fast = null; };
-    c.on('close', gone);
-    c.on('error', gone);
   }
 
   function startTimers() {
@@ -446,7 +474,7 @@
     let fps = null;
     let buffer = null;
     let path = null;
-    const pc = mediaCall && mediaCall.peerConnection;
+    const pc = mediaPc();
     if (pc) {
       try {
         const report = await pc.getStats();

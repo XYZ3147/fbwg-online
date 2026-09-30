@@ -6,7 +6,8 @@ Watergirl on Coolmath Games together. Made by XYZ.
 The host runs the game. The extension streams the game's picture and sound to the
 friend and replays the friend's keys and clicks into the host's game. The two computers
 connect directly (WebRTC, with the free PeerJS server for the initial handshake), so no
-account or server setup is needed.
+account or server setup is needed. Everything (controls, video, sound) travels over a single
+connection.
 
 ## Install (both players)
 
@@ -171,5 +172,9 @@ A full online session has only been played on Forest Temple so far.
 - One friend per room.
 - Forest Temple draws at about 25 fps (its original Flash frame rate), so the stream runs at that rate too.
 - The friend's picture is only as sharp as the host's game window is large.
-- Some strict networks block direct connections. PeerJS then falls back to its public
-  relay servers, which adds lag.
+- The two computers must be able to connect directly. Some strict networks (school, office,
+  hotel, some mobile carriers) block that, and there is no relay by default: PeerJS's free relay
+  servers no longer exist. To support those networks, add a relay (TURN) server to
+  `settings.iceServers` in `update.json`; services like Metered or ExpressTURN have free tiers.
+- Host and friend need the same connection version. After an update that changes it, each side
+  tells the other to update.

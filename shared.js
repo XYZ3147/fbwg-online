@@ -1,6 +1,10 @@
 // Shared between the host content script, the popup and the guest viewer.
 var FBWG = (() => {
   const PEER_PREFIX = 'fbwg-online-';
+  // Bumped when host and friend must both update to keep working together.
+  // 2: video, sound and fast keys share the one connection.
+  const PROTO = 2;
+  const FAST_LABEL = 'fbwg-fast';
   const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   const CODE_LENGTH = 5;
 
@@ -291,14 +295,14 @@ var FBWG = (() => {
     maxWidth: 960, // stream is scaled down to at most this width (the games are ~640 px)
     guestTimeoutMs: 8000, // host frees the slot after this much silence
     hostTimeoutMs: 10000, // friend gives up after this much silence
-    // Address servers (STUN) help the two computers find a direct route; the
-    // relay (TURN) carries the game when no direct route exists. The first
-    // and last two are PeerJS's own defaults.
+    // Address servers (STUN) help the two computers find a direct route. There
+    // is no relay (TURN) by default: PeerJS's free relay hosts stopped resolving
+    // (checked 2026-09-30), so strict networks need one added here or through
+    // update.json, e.g. { urls: 'turn:host:3478', username: '…', credential: '…' }.
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] },
       { urls: 'stun:stun.cloudflare.com:3478' },
-      { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
     ],
     savePrefixes: [], // extra save-entry name prefixes to back up
   };
@@ -376,6 +380,7 @@ var FBWG = (() => {
 
   return {
     ROLE_KEYS, ROLE_NAMES, DIRECTIONS, CODE_LENGTH, newCode, normalizeCode, peerIdFor, otherRole,
+    PROTO, FAST_LABEL,
     UPDATE_URL, RELEASES_URL, SITE, DEFAULT_GAMES, cleanGames, frameMatches, tabMatches, compareVersions,
     isSaveKey, saveLabel, SAVE_HISTORY_MAX, DEFAULT_SETTINGS, cleanSettings, loadSettings, peerOptions,
     LAYOUT_KEYS, LAYOUT_NAMES, layoutFor, DEFAULT_CONTROLS, ACTION_NAMES, cleanControls, loadControls,

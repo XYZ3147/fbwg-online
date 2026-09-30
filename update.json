@@ -1,11 +1,10 @@
 {
-  "version": "1.7.0",
+  "version": "1.8.0",
   "notes": [
-    "Two players on one computer: a Choose sides screen for two controllers, or keyboard + controller",
-    "The popup and Controls page list connected controllers and the character each one plays",
-    "If the host game reloads or crashes, it keeps the same room code and the friend gets straight back in",
-    "Quick signals: keys 1-4 for Wait!/Go!/Help!/Nice!, plus a marker to point at a spot",
-    "Smooth / Sharp picture quality button in the friend window"
+    "Fixes \"The video connection failed\": video, sound and keys now share the one connection that is already working, instead of each needing its own",
+    "Both players must update: host and friend need 1.8.0 to play together (each side says so if the other is out of date)",
+    "Faster joining, with one connection to set up instead of three",
+    "Removed the old relay servers, which no longer exist"
   ],
   "announcement": "",
   "settings": {
@@ -26,14 +25,6 @@
       },
       {
         "urls": "stun:stun.cloudflare.com:3478"
-      },
-      {
-        "urls": [
-          "turn:eu-0.turn.peerjs.com:3478",
-          "turn:us-0.turn.peerjs.com:3478"
-        ],
-        "username": "peerjs",
-        "credential": "peerjsp"
       }
     ],
     "savePrefixes": []

@@ -17,10 +17,11 @@
 
   let peer = null;
   let conn = null;
-  let fast = null; // unordered channel for keys and pings; conn stays ordered for clicks and control
+  let fast = null; // extra unordered channel on the same connection, for keys and pings
   let lastKeySeq = -1;
-  let call = null;
   let stream = null;
+  let negotiation = Promise.resolve(); // video setup steps run one at a time
+  let awaitingAnswer = null; // resolves when the friend answers a video offer
   let held = {}; // direction -> bool, what we've told the game the guest is holding
   let mouseDown = false;
   let codeRetries = 0;
@@ -202,34 +203,77 @@
     }
   }
 
-  function startCall(guestPeerId) {
-    stream = buildStream();
-    const thisCall = peer.call(guestPeerId, stream);
-    call = thisCall;
-    const pc = thisCall.peerConnection;
-    if (pc) {
-      const tune = () => {
-        if (pc.connectionState === 'connected') tuneSenders(pc);
-        if (conn && conn.open) conn.send({ t: 'hostVideo', s: pc.connectionState });
-      };
-      pc.addEventListener('connectionstatechange', tune);
-      tune();
-    }
-    thisCall.on('close', () => { if (call === thisCall) call = null; });
-    thisCall.on('error', () => {});
+  // Video and sound travel on the SAME connection as the controls. A separate
+  // video connection had to find its own way through both networks and could
+  // fail on strict ones even though the controls were connected.
+  const mediaPc = () => (conn && conn.peerConnection) || null;
+
+  // Agree the new tracks with the friend through the already-open channel.
+  function renegotiate(c) {
+    negotiation = negotiation.then(async () => {
+      const pc = c.peerConnection;
+      if (conn !== c || !c.open || !pc) return;
+      const answered = new Promise((resolve, reject) => {
+        awaitingAnswer = { resolve, reject };
+        setTimeout(() => reject(new Error('the friend did not answer the video offer')), 15000);
+      });
+      answered.catch(() => {}); // handled by the await below; avoids a stray warning if we bail out first
+      await pc.setLocalDescription(await pc.createOffer());
+      c.send({ t: 'sdp', d: { type: pc.localDescription.type, sdp: pc.localDescription.sdp } });
+      await pc.setRemoteDescription(await answered);
+      tuneSenders(pc);
+    }).catch((e) => {
+      console.warn('[FBWG] video setup failed', e);
+      if (conn === c && c.open) c.send({ t: 'error', message: e.message || String(e) });
+    }).finally(() => { awaitingAnswer = null; });
   }
 
-  // Sound may start after the call (the game creates its AudioContext on first
-  // click). Re-call with the audio track added once it shows up.
+  function startMedia(c) {
+    const pc = c.peerConnection;
+    if (!pc) throw new Error('No connection to send video over.');
+    stream = buildStream();
+    for (const track of stream.getTracks()) pc.addTrack(track, stream);
+    renegotiate(c);
+  }
+
+  // Sound may start after the video (the game creates its AudioContext on the
+  // first click): add the audio track then.
   document.addEventListener('fbwg-audio-ready', () => {
     if (state.status !== 'connected' || !conn || !stream || stream.getAudioTracks().length) return;
+    const c = conn;
     setTimeout(() => {
-      if (state.status !== 'connected' || !conn) return;
-      if (call) call.close();
-      stopStream();
-      try { startCall(conn.peer); } catch (e) { console.warn('[FBWG] re-call failed', e); }
+      const pc = c.peerConnection;
+      const audio = audioTrack();
+      if (conn !== c || !pc || !stream || !audio || stream.getAudioTracks().length) return;
+      stream.addTrack(audio);
+      pc.addTrack(audio, stream);
+      renegotiate(c);
     }, 300);
   });
+
+  // The friend's fast channel arrives on the same connection. PeerJS would
+  // treat any new channel as its own, so take over the handler.
+  function watchForFastChannel(c) {
+    const pc = c.peerConnection;
+    if (!pc) return;
+    pc.ondatachannel = (e) => {
+      if (e.channel.label !== FBWG.FAST_LABEL || conn !== c) return;
+      const ch = e.channel;
+      const wrap = {
+        get open() { return ch.readyState === 'open'; },
+        send(msg) { if (ch.readyState === 'open') ch.send(JSON.stringify(msg)); },
+        close() { try { ch.close(); } catch {} },
+      };
+      ch.onmessage = (ev) => {
+        let m;
+        try { m = JSON.parse(ev.data); } catch { return; }
+        onGuestData(m, wrap);
+      };
+      ch.onclose = () => { if (fast === wrap) fast = null; };
+      if (fast) fast.close();
+      fast = wrap;
+    };
+  }
 
   function stopStream() {
     if (stream) stream.getVideoTracks().forEach((t) => t.stop());
@@ -252,14 +296,17 @@
       case 'mouse':
         replayMouse(msg);
         break;
+      case 'sdp':
+        if (awaitingAnswer && msg.d && msg.d.type === 'answer') awaitingAnswer.resolve(msg.d);
+        break;
       case 'signal':
         showSignal(msg, state.guestRole);
         break;
       case 'quality':
         if (msg.mode === 'sharp' || msg.mode === 'smooth') {
           quality = msg.mode;
-          const pc = call && call.peerConnection;
-          if (pc && pc.connectionState === 'connected') tuneSenders(pc);
+          const pc = mediaPc();
+          if (pc && stream) tuneSenders(pc);
         }
         break;
       case 'ping':
@@ -300,11 +347,18 @@
     lastSeen = Date.now();
     c.on('open', () => {
       lastSeen = Date.now();
+      // Both players need the same connection design.
+      if (!c.metadata || c.metadata.proto !== FBWG.PROTO) {
+        c.send({ t: 'error', message: 'your extension is out of date. Double-click Update.cmd in your extension folder, then join again.' });
+        setTimeout(() => { if (conn === c) c.__fbwgDrop(); }, 3000);
+        return;
+      }
       state.status = 'connected';
       state.rtt = null;
-      c.send({ t: 'hello', role: state.guestRole });
+      watchForFastChannel(c);
+      c.send({ t: 'hello', role: state.guestRole, proto: FBWG.PROTO });
       try {
-        startCall(c.peer);
+        startMedia(c);
       } catch (e) {
         c.send({ t: 'error', message: e.message });
       }
@@ -318,9 +372,8 @@
       conn = null;
       if (fast) { try { fast.close(); } catch {} }
       fast = null;
+      if (awaitingAnswer) awaitingAnswer.reject(new Error('the friend disconnected'));
       try { c.close(); } catch {}
-      if (call) call.close();
-      call = null;
       stopStream();
       if (state.status === 'connected') state.status = 'waiting';
       state.rtt = null;
@@ -330,20 +383,6 @@
     c.on('close', drop);
     c.on('error', drop);
     c.__fbwgDrop = drop;
-  }
-
-  // Only the current guest may add a fast channel; it lives and dies with their main one.
-  function acceptFast(c) {
-    if (!conn || c.peer !== conn.peer) {
-      setTimeout(() => { try { c.close(); } catch {} }, 0);
-      return;
-    }
-    if (fast && fast !== c) { try { fast.close(); } catch {} }
-    fast = c;
-    c.on('data', (m) => onGuestData(m, c));
-    const gone = () => { if (fast === c) fast = null; };
-    c.on('close', gone);
-    c.on('error', gone);
   }
 
   // The guest pings every second. If it goes silent (crash, network loss) free
@@ -372,8 +411,9 @@
       render();
     });
     peer.on('connection', (c) => {
+      // Older versions opened a second connection for fast keys; not used any more.
       if (c.metadata && c.metadata.kind === 'fast') {
-        acceptFast(c);
+        setTimeout(() => { try { c.close(); } catch {} }, 0);
         return;
       }
       const returning = c.metadata && c.metadata.guestId && conn && conn.metadata
@@ -441,10 +481,8 @@
     releaseAll();
     if (conn) { try { conn.close(); } catch {} }
     if (fast) { try { fast.close(); } catch {} }
-    if (call) { try { call.close(); } catch {} }
     conn = null;
     fast = null;
-    call = null;
     stopStream();
     if (peer) { try { peer.destroy(); } catch {} }
     peer = null;
@@ -488,8 +526,8 @@
   })();
   // The stream's size follows the canvas, so re-apply the width cap on resize.
   window.addEventListener('resize', () => {
-    const pc = call && call.peerConnection;
-    if (pc && pc.connectionState === 'connected') setTimeout(() => tuneSenders(pc), 250);
+    const pc = mediaPc();
+    if (pc && stream) setTimeout(() => { if (mediaPc() === pc) tuneSenders(pc); }, 250);
   });
 
   // ---------- quick signals ----------
